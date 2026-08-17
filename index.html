@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>English Master AI - L'application d'anglais la plus complète du débutant à l'avancé</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS App -->
+  <link rel="stylesheet" href="assets/css/frontend-app.css">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #090e21;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Root App Target Container -->
+  <div id="english-master-ai-app"></div>
+
+  <!-- Local Dataset for Instant Offline & File:// Compatibility -->
+  <script src="assets/js/lessons-data.js"></script>
+
+  <!-- Injected Config -->
+  <script>
+    window.EMA_CONFIG = {
+      api_root: '/wp-json/english-master-ai/v1/',
+      nonce: '',
+      plugin_url: './',
+      initial_data: window.EMA_DATASET || null,
+      user: {
+        name: 'Alex Martin',
+        level: 'B1',
+        level_name: 'Intermediate',
+        progress: 64,
+        streak: 7,
+        daily_goal: 30,
+        daily_spent: 20,
+        xp: 1480
+      }
+    };
+  </script>
+
+  <!-- Main Interactive App Engine -->
+  <script src="assets/js/frontend-app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,692 @@
+/* ==========================================================================
+   English Master AI - 100% Mobile-First Responsive Stylesheet
+   Faithfully crafted to match native iOS / Android App experience
+   ========================================================================== */
+
+:root {
+  --ema-primary: #2563eb;
+  --ema-primary-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  --ema-bg-dark: #090e21;
+  --ema-bg-card: #131c38;
+  --ema-bg-card-hover: #1a274d;
+  --ema-bg-card-light: #ffffff;
+  --ema-text-main: #0f172a;
+  --ema-text-light: #ffffff;
+  --ema-text-muted: #94a3b8;
+  --ema-border-dark: rgba(255, 255, 255, 0.08);
+  --ema-border-light: #e2e8f0;
+  
+  --ema-green: #10b981;
+  --ema-amber: #f59e0b;
+  --ema-indigo: #6366f1;
+  --ema-purple: #8b5cf6;
+  --ema-pink: #ec4899;
+  --ema-red: #ef4444;
+
+  --ema-radius-sm: 10px;
+  --ema-radius-md: 16px;
+  --ema-radius-lg: 22px;
+  --ema-radius-xl: 30px;
+  
+  --ema-shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+  --ema-shadow-btn: 0 8px 20px rgba(37, 99, 235, 0.4);
+  --ema-font: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ema-bottom-nav-height: 70px;
+}
+
+/* Reset & Mobile App Frame */
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #060a17;
+  font-family: var(--ema-font);
+  color: #ffffff;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.ema-app-viewport {
+  max-width: 480px;
+  min-height: 100vh;
+  margin: 0 auto;
+  background: var(--ema-bg-dark);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.6);
+  overflow-x: hidden;
+  padding-bottom: calc(var(--ema-bottom-nav-height) + env(safe-area-inset-bottom, 20px));
+}
+
+@media (min-width: 768px) {
+  body {
+    background: #020617;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px 0;
+  }
+  .ema-app-viewport {
+    border-radius: 40px;
+    height: 890px;
+    min-height: 890px;
+    max-height: 94vh;
+    border: 8px solid #1e293b;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Status Bar Mock */
+.ema-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px 8px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  z-index: 10;
+}
+
+.ema-status-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* Top App Header (Screen Title / Navigation) */
+.ema-mobile-header {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: rgba(9, 14, 33, 0.85);
+  backdrop-filter: blur(12px);
+  z-index: 20;
+}
+
+.ema-header-btn-back {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ema-header-btn-back:active {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.ema-header-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+  color: #ffffff;
+}
+
+.ema-header-badge {
+  background: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(37, 99, 235, 0.4);
+  color: #60a5fa;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* Main Scrollable Content Container */
+.ema-mobile-body {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 10px 18px 24px 18px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ema-mobile-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* 1. HOME SCREEN COMPONENTS */
+
+/* Greeting Header */
+.ema-home-greeting {
+  margin-bottom: 18px;
+}
+
+.ema-home-greeting h2 {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 4px 0;
+  color: #ffffff;
+}
+
+.ema-home-greeting p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ema-text-muted);
+}
+
+/* Current Level Banner Card */
+.ema-current-level-card {
+  background: linear-gradient(135deg, #131d3d 0%, #1a2752 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--ema-radius-lg);
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--ema-shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+.ema-current-level-card::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 90px;
+  height: 90px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, rgba(99, 102, 241, 0) 70%);
+  pointer-events: none;
+}
+
+.ema-level-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ema-level-pill-badge {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+  flex-shrink: 0;
+}
+
+.ema-level-meta {
+  flex-grow: 1;
+}
+
+.ema-level-meta .sub {
+  font-size: 12px;
+  color: var(--ema-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ema-level-meta .name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 2px 0 6px 0;
+}
+
+.ema-progress-track {
+  width: 100%;
+  height: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ema-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+  border-radius: 999px;
+}
+
+.ema-level-pct {
+  font-size: 14px;
+  font-weight: 800;
+  color: #60a5fa;
+  align-self: flex-start;
+}
+
+/* Daily Goal & Streak 2-Col Grid */
+.ema-stats-dual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ema-small-stat-card {
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ema-radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.ema-small-stat-card .label {
+  font-size: 11px;
+  color: var(--ema-text-muted);
+  font-weight: 600;
+}
+
+.ema-small-stat-card .val {
+  font-size: 17px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 6px 0 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Big Action Button */
+.ema-mobile-primary-btn {
+  background: var(--ema-primary-gradient);
+  color: #ffffff;
+  border: none;
+  width: 100%;
+  padding: 16px;
+  border-radius: var(--ema-radius-md);
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: var(--ema-shadow-btn);
+  transition: transform 0.15s ease, filter 0.15s ease;
+  margin-bottom: 24px;
+}
+
+.ema-mobile-primary-btn:active {
+  transform: scale(0.98);
+  filter: brightness(0.9);
+}
+
+/* Section Header */
+.ema-mobile-sec-header {
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Recommended Lessons List */
+.ema-recom-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.ema-recom-item {
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ema-radius-md);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ema-recom-item:active {
+  background: #19254d;
+  transform: scale(0.99);
+}
+
+.ema-recom-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.ema-recom-info {
+  flex-grow: 1;
+}
+
+.ema-recom-info .cat {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ema-recom-info .title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 1px;
+}
+
+.ema-recom-time {
+  font-size: 12px;
+  color: var(--ema-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 2. UNITS & LESSONS SCREEN (MOCKUP SCREEN 2) */
+
+/* Tab Switcher (Units / Lessons) */
+.ema-segment-control {
+  display: flex;
+  background: #111933;
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ema-segment-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--ema-text-muted);
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ema-segment-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.ema-unit-card {
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ema-radius-md);
+  padding: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ema-unit-card:active {
+  background: #1a2752;
+}
+
+.ema-unit-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #1a2752;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.ema-unit-details {
+  flex-grow: 1;
+}
+
+.ema-unit-details .title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.ema-unit-details .count {
+  font-size: 12px;
+  color: var(--ema-text-muted);
+  margin-top: 2px;
+}
+
+.ema-chevron-right {
+  color: var(--ema-text-muted);
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* 3. PRONUNCIATION PRACTICE (MOCKUP SCREEN 3) */
+.ema-pronun-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 10px 0;
+}
+
+.ema-pronun-badge-score {
+  align-self: flex-end;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid #10b981;
+  color: #10b981;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+.ema-target-word-title {
+  font-size: 38px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 10px 0 2px 0;
+  letter-spacing: -0.5px;
+}
+
+.ema-target-word-ipa {
+  font-size: 20px;
+  font-family: monospace;
+  color: #818cf8;
+  margin-bottom: 16px;
+}
+
+.ema-audio-sub-prompt {
+  font-size: 13px;
+  color: var(--ema-text-muted);
+  margin-bottom: 24px;
+}
+
+.ema-pronun-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.ema-btn-circle-listen {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+}
+
+.ema-btn-circle-listen:active {
+  transform: scale(0.92);
+}
+
+.ema-btn-circle-mic {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
+  transition: transform 0.2s ease;
+}
+
+.ema-btn-circle-mic:active {
+  transform: scale(0.92);
+}
+
+.ema-btn-circle-mic.recording {
+  background: #ef4444;
+  animation: pulse-mic 1.2s infinite;
+}
+
+/* Audio Wave Visualizer */
+.ema-wave-visualizer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 40px;
+  margin-bottom: 24px;
+}
+
+.ema-wave-bar {
+  width: 4px;
+  height: 12px;
+  background: #3b82f6;
+  border-radius: 999px;
+  animation: wave-anim 1.2s infinite ease-in-out alternate;
+}
+
+.ema-wave-bar:nth-child(2) { animation-delay: 0.2s; height: 26px; }
+.ema-wave-bar:nth-child(3) { animation-delay: 0.4s; height: 36px; background: #60a5fa; }
+.ema-wave-bar:nth-child(4) { animation-delay: 0.1s; height: 20px; }
+.ema-wave-bar:nth-child(5) { animation-delay: 0.3s; height: 32px; background: #818cf8; }
+.ema-wave-bar:nth-child(6) { animation-delay: 0.5s; height: 16px; }
+
+@keyframes wave-anim {
+  0% { transform: scaleY(0.4); opacity: 0.6; }
+  100% { transform: scaleY(1.4); opacity: 1; }
+}
+
+/* Feedback Tip Box */
+.ema-feedback-box {
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ema-radius-md);
+  padding: 16px;
+  text-align: left;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.ema-feedback-box .top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #10b981;
+  margin-bottom: 4px;
+}
+
+.ema-feedback-box .sub {
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-bottom: 10px;
+}
+
+.ema-feedback-box .tips-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f59e0b;
+  margin-bottom: 4px;
+}
+
+.ema-feedback-box ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--ema-text-muted);
+  line-height: 1.4;
+}
+
+/* 4. BOTTOM NAVIGATION BAR (100% NATIVE MOBILE) */
+.ema-bottom-nav {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: var(--ema-bottom-nav-height);
+  background: #0d142b;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 50;
+}
+
+.ema-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: #64748b;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px 10px;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+
+.ema-nav-item .icon {
+  font-size: 20px;
+  transition: transform 0.2s ease;
+}
+
+.ema-nav-item.active {
+  color: #3b82f6;
+}
+
+.ema-nav-item.active .icon {
+  transform: translateY(-2px);
+}
+
+.ema-nav-item:active {
+  transform: scale(0.92);
+}
