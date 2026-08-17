@@ -948,3 +948,92 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border-radius: 4px;
   transition: width 0.5s ease;
 }
+
+/* Level Picker Horizontal Scroll */
+.ema-level-picker {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 12px 2px;
+  margin-bottom: 16px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.ema-level-picker::-webkit-scrollbar {
+  display: none;
+}
+
+.ema-level-chip {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: #111933;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  min-width: 72px;
+  text-align: center;
+}
+
+.ema-level-chip:active {
+  transform: scale(0.95);
+}
+
+.ema-level-chip.active {
+  border-color: var(--ema-primary);
+  background: rgba(37, 99, 235, 0.15);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+}
+
+.ema-level-chip .chip-level {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.ema-level-chip .chip-name {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--ema-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.ema-level-chip.active .chip-level {
+  color: #60a5fa;
+}
+
+.ema-level-chip.active .chip-name {
+  color: #93c5fd;
+}
+
+/* Level-specific chip accent colors */
+.ema-level-chip[data-level="A1"] { border-color: rgba(16, 185, 129, 0.3); }
+.ema-level-chip[data-level="A1"].active { border-color: #10b981; background: rgba(16, 185, 129, 0.15); box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3); }
+.ema-level-chip[data-level="A1"].active .chip-level { color: #34d399; }
+
+.ema-level-chip[data-level="A2"] { border-color: rgba(245, 158, 11, 0.3); }
+.ema-level-chip[data-level="A2"].active { border-color: #f59e0b; background: rgba(245, 158, 11, 0.15); box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3); }
+.ema-level-chip[data-level="A2"].active .chip-level { color: #fbbf24; }
+
+.ema-level-chip[data-level="B1"] { border-color: rgba(37, 99, 235, 0.3); }
+.ema-level-chip[data-level="B1"].active { border-color: #2563eb; background: rgba(37, 99, 235, 0.15); }
+.ema-level-chip[data-level="B1"].active .chip-level { color: #60a5fa; }
+
+.ema-level-chip[data-level="B2"] { border-color: rgba(139, 92, 246, 0.3); }
+.ema-level-chip[data-level="B2"].active { border-color: #8b5cf6; background: rgba(139, 92, 246, 0.15); box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3); }
+.ema-level-chip[data-level="B2"].active .chip-level { color: #a78bfa; }
+
+.ema-level-chip[data-level="C1"] { border-color: rgba(236, 72, 153, 0.3); }
+.ema-level-chip[data-level="C1"].active { border-color: #ec4899; background: rgba(236, 72, 153, 0.15); box-shadow: 0 4px 16px rgba(236, 72, 153, 0.3); }
+.ema-level-chip[data-level="C1"].active .chip-level { color: #f472b6; }
+
+.ema-level-chip[data-level="C2"] { border-color: rgba(239, 68, 68, 0.3); }
+.ema-level-chip[data-level="C2"].active { border-color: #ef4444; background: rgba(239, 68, 68, 0.15); box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3); }
+.ema-level-chip[data-level="C2"].active .chip-level { color: #f87171; }

@@ -351,8 +351,8 @@
         <div class="ema-recom-item" onclick="window.EMA.openGrammarModal()">
           <div class="ema-recom-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">📖</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #10b981;">Grammar</div>
-            <div class="title">Present Perfect</div>
+            <div class="cat" style="color: #10b981;">Grammar (${escapeHTML(activeLevelId)})</div>
+            <div class="title">Level ${escapeHTML(activeLevelId)} Grammar Practice</div>
           </div>
           <div class="ema-recom-time">12 min ❯</div>
         </div>
@@ -361,8 +361,8 @@
         <div class="ema-recom-item" onclick="window.EMA.navTo('practice')">
           <div class="ema-recom-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">📚</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #f59e0b;">Vocabulary</div>
-            <div class="title">Travel & Airport</div>
+            <div class="cat" style="color: #f59e0b;">Vocabulary (${escapeHTML(activeLevelId)})</div>
+            <div class="title">Level ${escapeHTML(activeLevelId)} Vocabulary</div>
           </div>
           <div class="ema-recom-time">10 min ❯</div>
         </div>
@@ -371,8 +371,8 @@
         <div class="ema-recom-item" onclick="window.EMA.openListeningModal()">
           <div class="ema-recom-icon-box" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa;">🎧</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #60a5fa;">Listening</div>
-            <div class="title">At the Airport</div>
+            <div class="cat" style="color: #60a5fa;">Listening (${escapeHTML(activeLevelId)})</div>
+            <div class="title">Level ${escapeHTML(activeLevelId)} Listening</div>
           </div>
           <div class="ema-recom-time">08 min ❯</div>
         </div>
@@ -381,8 +381,8 @@
         <div class="ema-recom-item" onclick="window.EMA.navTo('speak')">
           <div class="ema-recom-icon-box" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">🎙️</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #a78bfa;">Speaking</div>
-            <div class="title">Hotel Check-In</div>
+            <div class="cat" style="color: #a78bfa;">Speaking (${escapeHTML(activeLevelId)})</div>
+            <div class="title">Level ${escapeHTML(activeLevelId)} Pronunciation</div>
           </div>
           <div class="ema-recom-time">10 min ❯</div>
         </div>
@@ -394,6 +394,7 @@
      SCREEN 2: LEARN / PARCOURS A1-C2
      ------------------------------------------------------------- */
   function renderLearnScreen() {
+    const levelNames = { A1: 'Beginner', A2: 'Elementary', B1: 'Intermediate', B2: 'Upper-Int', C1: 'Advanced', C2: 'Mastery' };
     const levelObj = appData.levels.find(l => l.id === activeLevelId) || appData.levels[1];
 
     let content = '';
@@ -429,12 +430,30 @@
       `).join('');
     }
 
+    // Compute real progress
+    let totalCompleted = 0;
+    let totalLessons = 0;
+    levelObj.units.forEach(unit => {
+      totalCompleted += (unit.lessons_completed || 0);
+      totalLessons += (unit.lessons_total || 0);
+    });
+    const progressPct = totalLessons > 0 ? Math.round((totalCompleted / totalLessons) * 100) : 0;
+
     return `
+      <div class="ema-level-picker">
+        ${['A1','A2','B1','B2','C1','C2'].map(lvl => \`
+          <div class="ema-level-chip \${activeLevelId === lvl ? 'active' : ''}" data-level="\${lvl}" onclick="window.EMA.selectLevel('\${lvl}')">
+            <span class="chip-level">\${lvl}</span>
+            <span class="chip-name">\${levelNames[lvl]}</span>
+          </div>
+        \`).join('')}
+      </div>
+
       <!-- Header -->
       <div class="ema-mobile-header" style="padding-left: 0; padding-right: 0;">
         <button class="ema-header-btn-back" onclick="window.EMA.navTo('home')">‹</button>
         <h3 class="ema-header-title">${escapeHTML(levelObj.title)}</h3>
-        <span class="ema-header-badge">45%</span>
+        <span class="ema-header-badge">${progressPct}%</span>
       </div>
 
       <!-- Segment Tabs (Units / Lessons) -->
@@ -452,7 +471,9 @@
      SCREEN 3: SPEAK & PRONUNCIATION
      ------------------------------------------------------------- */
   function renderSpeakScreen() {
-    const pronunWord = appData.pronunciation_words[currentPronunIndex % appData.pronunciation_words.length];
+    const levelWords = appData.pronunciation_words.filter(w => w.level === activeLevelId);
+    const wordsList = levelWords.length > 0 ? levelWords : appData.pronunciation_words;
+    const pronunWord = wordsList[currentPronunIndex % wordsList.length];
 
     return `
       <!-- Header -->
@@ -514,7 +535,8 @@
      SCREEN 4: PRACTICE
      ------------------------------------------------------------- */
   function renderPracticeScreen() {
-    const vocab = appData.vocabulary_items[0];
+    const levelVocab = appData.vocabulary_items.filter(v => v.level === activeLevelId);
+    const vocab = levelVocab.length > 0 ? levelVocab[0] : appData.vocabulary_items[0];
 
     return `
       <!-- Header -->
@@ -629,6 +651,13 @@
 
   // Public API methods
   window.EMA = {
+    selectLevel(levelId) {
+      AudioFX.playTap();
+      activeLevelId = levelId;
+      activeUnitTab = 'units';
+      renderApp();
+    },
+
     navTo(tab) {
       AudioFX.playTap();
       currentTab = tab;
@@ -734,7 +763,9 @@
 
     openGrammarModal() {
       AudioFX.playTap();
-      const questions = appData.grammar_modules[0].questions;
+      const levelModules = appData.grammar_modules.filter(m => m.level === activeLevelId);
+      const module = levelModules.length > 0 ? levelModules[Math.floor(Math.random() * levelModules.length)] : appData.grammar_modules[0];
+      const questions = module.questions;
       let qIndex = 0;
       let score = 0;
       
@@ -793,7 +824,8 @@
 
     openListeningModal() {
       AudioFX.playTap();
-      const exercise = appData.listening_exercises[0];
+      const levelExercises = appData.listening_exercises.filter(e => e.level === activeLevelId);
+      const exercise = levelExercises.length > 0 ? levelExercises[Math.floor(Math.random() * levelExercises.length)] : appData.listening_exercises[0];
       
       const html = `
         <div style="text-align:center; margin-bottom: 24px;">
@@ -834,7 +866,8 @@
 
     openWritingModal() {
       AudioFX.playTap();
-      const promptData = appData.writing_prompts[0];
+      const levelPrompts = appData.writing_prompts.filter(p => p.level === activeLevelId);
+      const promptData = levelPrompts.length > 0 ? levelPrompts[Math.floor(Math.random() * levelPrompts.length)] : appData.writing_prompts[0];
       
       const html = `
         <div style="font-size: 15px; margin-bottom: 16px;"><strong>Prompt:</strong> ${escapeHTML(promptData.prompt)}</div>
@@ -888,7 +921,10 @@
 
     openIdiomsModal() {
       AudioFX.playTap();
-      const items = [...appData.phrasal_verbs, ...appData.idioms_expressions];
+      const items = [...appData.phrasal_verbs.filter(i => i.level === activeLevelId), ...appData.idioms_expressions.filter(i => i.level === activeLevelId)];
+      if (items.length === 0) {
+        items.push(...appData.phrasal_verbs, ...appData.idioms_expressions);
+      }
       let idx = 0;
       
       const renderCard = () => {
