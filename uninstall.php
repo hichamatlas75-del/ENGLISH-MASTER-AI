@@ -17,6 +17,8 @@ delete_option('ema_gemini_api_key');
 delete_option('ema_enable_speech');
 delete_option('ema_certificate_institution');
 delete_option('ema_certificate_signature_name');
+delete_option('ema_firebase_api_key');
+delete_option('ema_firebase_project_id');
 delete_option('ema_daily_goal_default');
 
 // Flush rewrite rules

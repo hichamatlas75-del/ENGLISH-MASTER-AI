@@ -1,6 +1,7 @@
 /**
- * English Master AI - 100% Mobile-First Engine
- * Optimized for Mobile devices & Smartphone Navigation
+ * English Master AI - 100% Mobile-First Engine & Web Application
+ * Features: A1-C2 Curriculum, AI Conversation Tutor, SRS Vocabulary,
+ * Pronunciation Coach with Speech Recognition, Grammar Quizzes, Writing Workshop & Cloud Sync.
  */
 
 (function () {
@@ -12,7 +13,7 @@
     nonce: '',
     plugin_url: './',
     user: {
-      name: 'Alex',
+      name: 'Alex Martin',
       level: 'B1',
       level_name: 'Intermediate',
       progress: 64,
@@ -45,10 +46,12 @@
   let currentTab = 'home'; // home, learn, practice, speak, progress
   let activeLevelId = 'B1';
   let activeUnitTab = 'units'; // units, lessons
-  let selectedUnit = null;
   let recognitionInstance = null;
   let isRecording = false;
   let currentPronunIndex = 0;
+  let currentSrsIndex = 0;
+  let chatHistory = [];
+  let currentChatScenario = 'hotel_checkin';
 
   // Sound effects
   const AudioFX = {
@@ -62,57 +65,85 @@
     playSuccess() {
       this.init();
       if (!this.ctx) return;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(659.25, this.ctx.currentTime + 0.08);
-      osc.frequency.exponentialRampToValueAtTime(783.99, this.ctx.currentTime + 0.16);
-      gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start();
-      osc.stop(this.ctx.currentTime + 0.3);
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(659.25, this.ctx.currentTime + 0.08);
+        osc.frequency.exponentialRampToValueAtTime(783.99, this.ctx.currentTime + 0.16);
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.3);
+      } catch (e) {}
     },
     playTap() {
       this.init();
       if (!this.ctx) return;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(320, this.ctx.currentTime);
-      gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start();
-      osc.stop(this.ctx.currentTime + 0.06);
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+        gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.06);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.06);
+      } catch (e) {}
+    },
+    playError() {
+      this.init();
+      if (!this.ctx) return;
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+        osc.frequency.setValueAtTime(180, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.25);
+      } catch (e) {}
     }
   };
 
-  // TTS Voice
+  // TTS Voice Synthesis
   function speakEnglish(text, rate = 0.9) {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
-    u.rate = rate;
-    window.speechSynthesis.speak(u);
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = rate;
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      console.warn('TTS error:', e);
+    }
   }
 
   // REST API Integration Helper
   async function apiCall(endpoint, method = 'GET', body = null) {
     try {
-      const res = await fetch(CONFIG.api_root + endpoint, {
+      const url = (CONFIG.api_root.endsWith('/') ? CONFIG.api_root : CONFIG.api_root + '/') + endpoint.replace(/^\//, '');
+      const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CONFIG.nonce },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': CONFIG.nonce || ''
+        },
         body: body ? JSON.stringify(body) : undefined
       });
-      if (!res.ok) throw new Error('API error');
+      if (!res.ok) throw new Error('API request failed with status ' + res.status);
       return await res.json();
-    } catch(e) {
-      console.warn('API offline, using local fallback', e);
+    } catch (e) {
       return null;
     }
   }
@@ -122,15 +153,11 @@
     if (a.length === 0) return b.length;
     if (b.length === 0) return a.length;
     const matrix = [];
-    for (let i = 0; i <= b.length; i++) {
-      matrix[i] = [i];
-    }
-    for (let j = 0; j <= a.length; j++) {
-      matrix[0][j] = j;
-    }
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
     for (let i = 1; i <= b.length; i++) {
       for (let j = 1; j <= a.length; j++) {
-        if (b.charAt(i - 1) == a.charAt(j - 1)) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
           matrix[i][j] = matrix[i - 1][j - 1];
         } else {
           matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
@@ -144,7 +171,7 @@
   const Modal = {
     overlay: null,
     open(title, contentHTML, footerHTML = '') {
-      this.close(); // Close any existing modal
+      this.close();
       this.overlay = document.createElement('div');
       this.overlay.className = 'ema-modal-overlay';
       this.overlay.onclick = (e) => {
@@ -189,7 +216,6 @@
     },
     close() {
       if (this.overlay && this.overlay.parentNode) {
-        // Optional: Add close animation logic here before removing
         this.overlay.parentNode.removeChild(this.overlay);
       }
       this.overlay = null;
@@ -217,14 +243,21 @@
         currentUser = { ...currentUser, ...JSON.parse(saved) };
         activeLevelId = currentUser.level || 'B1';
       } catch (e) {}
-    } else {
-      // First visit: Open Profile Creation Onboarding!
-      setTimeout(() => {
-        if (window.EMA && window.EMA.openProfileModal) {
-          window.EMA.openProfileModal(true);
-        }
-      }, 400);
     }
+
+    // Check & calculate daily streak based on dates
+    const today = new Date().toISOString().split('T')[0];
+    const lastDate = localStorage.getItem('ema_last_active_date');
+    if (lastDate && lastDate !== today) {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      if (lastDate === yesterday) {
+        // Continuous streak
+      } else {
+        // Missed a day
+        currentUser.streak = Math.max(1, currentUser.streak);
+      }
+    }
+    localStorage.setItem('ema_last_active_date', today);
 
     // Try initializing Firebase Cloud Sync
     if (window.EMA_Firebase) {
@@ -258,13 +291,13 @@
       <div class="ema-app-viewport">
         <!-- iOS/Android Mock Status Bar -->
         <div class="ema-status-bar">
-          <button class="ema-profile-chip-btn" onclick="window.EMA.openProfileModal(false)" title="Gérer mon profil Cloud">
+          <button class="ema-profile-chip-btn" onclick="window.EMA.openProfileModal(false)" title="Gérer mon profil">
             <span class="avatar">${escapeHTML(currentUser.avatar || '👨‍🎓')}</span>
             <span>${escapeHTML(currentUser.name || 'Profil')}</span>
           </button>
           <div class="ema-status-icons">
             <span style="font-size: 11px; color: #60a5fa; font-weight: 800; background: rgba(37,99,235,0.2); padding: 2px 6px; border-radius: 6px;">${escapeHTML(currentUser.level)}</span>
-            <span>⚡ ${currentUser.xp} XP</span>
+            <span>⚡ ${(currentUser.xp || 0).toLocaleString()} XP</span>
           </div>
         </div>
 
@@ -320,6 +353,8 @@
      SCREEN 1: HOME DASHBOARD
      ------------------------------------------------------------- */
   function renderHomeScreen() {
+    const goalPct = Math.min(100, Math.round(((currentUser.daily_spent || 0) / (currentUser.daily_goal || 30)) * 100));
+
     return `
       <!-- Greeting -->
       <div class="ema-home-greeting">
@@ -332,13 +367,13 @@
         <div class="ema-level-row">
           <div class="ema-level-pill-badge">${escapeHTML(currentUser.level)}</div>
           <div class="ema-level-meta">
-            <div class="sub">Current Level</div>
+            <div class="sub">Current CEFR Level</div>
             <div class="name">${escapeHTML(currentUser.level_name)}</div>
             <div class="ema-progress-track">
-              <div class="ema-progress-fill" style="width: ${currentUser.progress}%;"></div>
+              <div class="ema-progress-fill" style="width: ${currentUser.progress || 60}%;"></div>
             </div>
           </div>
-          <div class="ema-level-pct">${currentUser.progress}%</div>
+          <div class="ema-level-pct">${currentUser.progress || 60}%</div>
         </div>
       </div>
 
@@ -346,15 +381,15 @@
       <div class="ema-stats-dual-grid">
         <div class="ema-small-stat-card">
           <div class="label">Daily Goal</div>
-          <div class="val">${currentUser.daily_spent} / ${currentUser.daily_goal} min <span style="font-size: 14px;">🔥</span></div>
+          <div class="val">${currentUser.daily_spent || 0} / ${currentUser.daily_goal || 30} min <span style="font-size: 14px;">🔥</span></div>
           <div class="ema-progress-track" style="margin-top: 6px; height: 5px;">
-            <div class="ema-progress-fill" style="width: ${(currentUser.daily_spent / currentUser.daily_goal) * 100}%; background: #f59e0b;"></div>
+            <div class="ema-progress-fill" style="width: ${goalPct}%; background: #f59e0b;"></div>
           </div>
         </div>
 
         <div class="ema-small-stat-card">
-          <div class="label">7 day streak</div>
-          <div class="val">${currentUser.streak} <span style="font-size: 13px; color: #10b981; font-weight: normal;">days 🔥</span></div>
+          <div class="label">Daily Streak</div>
+          <div class="val">${currentUser.streak || 1} <span style="font-size: 13px; color: #10b981; font-weight: normal;">days 🔥</span></div>
           <div style="display: flex; gap: 4px; margin-top: 6px;">
             <span style="font-size: 10px; color: #10b981;">●●●●●●</span><span style="font-size: 10px; color: #f59e0b;">●</span>
           </div>
@@ -365,6 +400,20 @@
       <button class="ema-mobile-primary-btn" onclick="window.EMA.startDailyLesson()">
         <span>Start Today's Lesson</span> ➔
       </button>
+
+      <!-- AI Coach Hero Banner -->
+      <div class="ema-current-level-card" style="background: linear-gradient(135deg, #1e1b4b 0%, #172554 100%); border-color: rgba(96, 165, 250, 0.3); cursor: pointer;" onclick="window.EMA.openAiChatModal()">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="font-size: 32px; background: rgba(37,99,235,0.25); width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center;">🤖</div>
+            <div>
+              <div style="font-size: 15px; font-weight: 800; color: #fff;">Tuteur de Conversation IA</div>
+              <div style="font-size: 12px; color: #93c5fd;">Dialoguez en anglais avec retour en direct</div>
+            </div>
+          </div>
+          <span style="font-size: 18px; color: #60a5fa;">❯</span>
+        </div>
+      </div>
 
       <!-- Recommended for you Section -->
       <div class="ema-mobile-sec-header">
@@ -383,12 +432,12 @@
           <div class="ema-recom-time">12 min ❯</div>
         </div>
 
-        <!-- Vocabulary Item -->
+        <!-- Vocabulary SRS Item -->
         <div class="ema-recom-item" onclick="window.EMA.navTo('practice')">
-          <div class="ema-recom-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">📚</div>
+          <div class="ema-recom-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">🧠</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #f59e0b;">Vocabulary (${escapeHTML(activeLevelId)})</div>
-            <div class="title">Level ${escapeHTML(activeLevelId)} Vocabulary</div>
+            <div class="cat" style="color: #f59e0b;">Vocabulary SRS (${escapeHTML(activeLevelId)})</div>
+            <div class="title">Level ${escapeHTML(activeLevelId)} Spaced Repetition</div>
           </div>
           <div class="ema-recom-time">10 min ❯</div>
         </div>
@@ -397,18 +446,18 @@
         <div class="ema-recom-item" onclick="window.EMA.openListeningModal()">
           <div class="ema-recom-icon-box" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa;">🎧</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #60a5fa;">Listening (${escapeHTML(activeLevelId)})</div>
-            <div class="title">Level ${escapeHTML(activeLevelId)} Listening</div>
+            <div class="cat" style="color: #60a5fa;">Listening Comprehension</div>
+            <div class="title">Level ${escapeHTML(activeLevelId)} Audio Dialogue</div>
           </div>
           <div class="ema-recom-time">08 min ❯</div>
         </div>
 
-        <!-- Speaking Item -->
+        <!-- Speaking & Pronunciation Item -->
         <div class="ema-recom-item" onclick="window.EMA.navTo('speak')">
           <div class="ema-recom-icon-box" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">🎙️</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #a78bfa;">Speaking (${escapeHTML(activeLevelId)})</div>
-            <div class="title">Level ${escapeHTML(activeLevelId)} Pronunciation</div>
+            <div class="cat" style="color: #a78bfa;">Speaking Coach</div>
+            <div class="title">Pronunciation & Phonetics Analysis</div>
           </div>
           <div class="ema-recom-time">10 min ❯</div>
         </div>
@@ -421,37 +470,39 @@
      ------------------------------------------------------------- */
   function renderLearnScreen() {
     const levelNames = { A1: 'Beginner', A2: 'Elementary', B1: 'Intermediate', B2: 'Upper-Int', C1: 'Advanced', C2: 'Mastery' };
-    const levelObj = appData.levels.find(l => l.id === activeLevelId) || appData.levels[1];
+    const levelObj = (appData.levels && appData.levels.find(l => l.id === activeLevelId)) || (appData.levels && appData.levels[0]) || { units: [] };
 
     let content = '';
 
     if (activeUnitTab === 'units') {
-      content = levelObj.units.map((unit) => `
+      content = (levelObj.units || []).map((unit) => `
         <div class="ema-unit-card" onclick="window.EMA.openUnitDetail('${escapeHTML(unit.id)}', '${escapeHTML(unit.title)}')">
-          <div class="ema-unit-icon">${escapeHTML(unit.icon)}</div>
+          <div class="ema-unit-icon">${escapeHTML(unit.icon || '📘')}</div>
           <div class="ema-unit-details">
             <div class="title">${escapeHTML(unit.title)}</div>
-            <div class="count">${unit.lessons_completed}/${unit.lessons_total} lessons</div>
+            <div class="count">${unit.lessons_completed || 0}/${unit.lessons_total || (unit.lessons ? unit.lessons.length : 4)} lessons</div>
           </div>
           <div class="ema-chevron-right">›</div>
         </div>
       `).join('');
     } else {
-      // Flatten lessons
+      // Flatten all lessons
       const lessons = [];
-      levelObj.units.forEach(unit => {
+      (levelObj.units || []).forEach(unit => {
         if (unit.lessons) {
           unit.lessons.forEach(lesson => lessons.push({ ...lesson, unitTitle: unit.title }));
         }
       });
       content = lessons.map(lesson => `
-        <div class="ema-recom-item" onclick="window.EMA.navTo('speak')">
-          <div class="ema-recom-icon-box" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa;">📘</div>
+        <div class="ema-recom-item" onclick="window.EMA.launchLesson('${escapeHTML(lesson.type || 'grammar')}', '${escapeHTML(lesson.id)}')">
+          <div class="ema-recom-icon-box" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa;">
+            ${lesson.type === 'grammar' ? '📖' : lesson.type === 'vocabulary' ? '🧠' : lesson.type === 'speaking' ? '🤖' : lesson.type === 'writing' ? '✍️' : '🎙️'}
+          </div>
           <div class="ema-recom-info">
             <div class="cat" style="color: #60a5fa;">${escapeHTML(lesson.unitTitle)}</div>
             <div class="title">${escapeHTML(lesson.title)}</div>
           </div>
-          <div class="ema-recom-time">${lesson.completed ? '✅' : '15 min ❯'}</div>
+          <div class="ema-recom-time">${lesson.duration || '10 min'} ❯</div>
         </div>
       `).join('');
     }
@@ -459,9 +510,9 @@
     // Compute real progress
     let totalCompleted = 0;
     let totalLessons = 0;
-    levelObj.units.forEach(unit => {
+    (levelObj.units || []).forEach(unit => {
       totalCompleted += (unit.lessons_completed || 0);
-      totalLessons += (unit.lessons_total || 0);
+      totalLessons += (unit.lessons_total || (unit.lessons ? unit.lessons.length : 4));
     });
     const progressPct = totalLessons > 0 ? Math.round((totalCompleted / totalLessons) * 100) : 0;
 
@@ -478,7 +529,7 @@
       <!-- Header -->
       <div class="ema-mobile-header" style="padding-left: 0; padding-right: 0;">
         <button class="ema-header-btn-back" onclick="window.EMA.navTo('home')">‹</button>
-        <h3 class="ema-header-title">${escapeHTML(levelObj.title)}</h3>
+        <h3 class="ema-header-title">${escapeHTML(levelObj.title || ('Level ' + activeLevelId))}</h3>
         <span class="ema-header-badge">${progressPct}%</span>
       </div>
 
@@ -497,8 +548,8 @@
      SCREEN 3: SPEAK & PRONUNCIATION
      ------------------------------------------------------------- */
   function renderSpeakScreen() {
-    const levelWords = appData.pronunciation_words.filter(w => w.level === activeLevelId);
-    const wordsList = levelWords.length > 0 ? levelWords : appData.pronunciation_words;
+    const levelWords = (appData.pronunciation_words || []).filter(w => w.level === activeLevelId);
+    const wordsList = levelWords.length > 0 ? levelWords : (appData.pronunciation_words || [{ word: 'Thoughtful', phonetic: '/ˈθɔːt.fəl/', definition: 'Showing consideration for others' }]);
     const pronunWord = wordsList[currentPronunIndex % wordsList.length];
 
     return `
@@ -506,7 +557,7 @@
       <div class="ema-mobile-header" style="padding-left: 0; padding-right: 0;">
         <button class="ema-header-btn-back" onclick="window.EMA.navTo('home')">‹</button>
         <h3 class="ema-header-title">Pronunciation Practice</h3>
-        <div style="width: 38px;"></div>
+        <button class="ema-header-badge" style="cursor: pointer; border: none;" onclick="window.EMA.openAiChatModal()">🤖 AI Coach</button>
       </div>
 
       <div class="ema-pronun-container">
@@ -514,20 +565,20 @@
         <h1 class="ema-target-word-title">${escapeHTML(pronunWord.word)}</h1>
         <div class="ema-target-word-ipa">${escapeHTML(pronunWord.phonetic)}</div>
         
-        <div class="ema-audio-sub-prompt">Listen and repeat</div>
+        <div class="ema-audio-sub-prompt">${escapeHTML(pronunWord.definition || 'Listen and repeat clearly')}</div>
 
         <!-- Listen & Record Buttons -->
         <div class="ema-pronun-actions-row">
-          <button class="ema-btn-circle-listen" onclick="window.EMA.listenWord('${escapeHTML(pronunWord.word)}')" title="Listen">
+          <button class="ema-btn-circle-listen" onclick="window.EMA.listenWord('${escapeHTML(pronunWord.word)}')" title="Listen to Native Speaker">
             🔊
           </button>
-          <button class="ema-btn-circle-mic" id="ema-mobile-mic-btn" onclick="window.EMA.toggleMobileRecord('${escapeHTML(pronunWord.word)}')" title="Speak">
+          <button class="ema-btn-circle-mic" id="ema-mobile-mic-btn" onclick="window.EMA.toggleMobileRecord('${escapeHTML(pronunWord.word)}')" title="Hold to Speak">
             🎙️
           </button>
         </div>
 
-        <!-- Audio Waveform Visualizer -->
-        <div class="ema-wave-visualizer">
+        <!-- Audio Waveform Visualizer with dynamic class -->
+        <div class="ema-wave-visualizer" id="ema-pronun-wave">
           <div class="ema-wave-bar"></div>
           <div class="ema-wave-bar"></div>
           <div class="ema-wave-bar"></div>
@@ -544,62 +595,82 @@
           <div class="sub">Practice makes perfect.</div>
           <div class="tips-title">Tips:</div>
           <ul>
-            <li>Speak clearly and naturally.</li>
-            <li>Focus on the phonetic sounds.</li>
+            <li>Listen carefully to the phonetic stress.</li>
+            <li>Speak naturally at normal speed.</li>
           </ul>
         </div>
 
         <!-- Continue Button -->
         <button class="ema-mobile-primary-btn" onclick="window.EMA.continuePronunciation()">
-          Skip / Next Word
+          Next Word ➔
+        </button>
+
+        <!-- Conversational Dialogue Banner -->
+        <button class="ema-mobile-primary-btn" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); margin-top: 8px;" onclick="window.EMA.openAiChatModal()">
+          🤖 Practice Conversation with AI Coach
         </button>
       </div>
     `;
   }
 
   /* -------------------------------------------------------------
-     SCREEN 4: PRACTICE
+     SCREEN 4: PRACTICE & SRS FLASHCARDS
      ------------------------------------------------------------- */
   function renderPracticeScreen() {
-    const levelVocab = appData.vocabulary_items.filter(v => v.level === activeLevelId);
-    const vocab = levelVocab.length > 0 ? levelVocab[0] : appData.vocabulary_items[0];
+    const levelVocab = (appData.vocabulary_items || []).filter(v => v.level === activeLevelId);
+    const vocabList = levelVocab.length > 0 ? levelVocab : (appData.vocabulary_items || [{ word: 'Accomplish', translation: 'Accomplir / Réussir', phonetic: '/əˈkʌm.plɪʃ/', example: 'She accomplished her goal.' }]);
+    const vocab = vocabList[currentSrsIndex % vocabList.length];
 
     return `
       <!-- Header -->
       <div class="ema-mobile-header" style="padding-left: 0; padding-right: 0;">
         <button class="ema-header-btn-back" onclick="window.EMA.navTo('home')">‹</button>
         <h3 class="ema-header-title">Practice & Skills</h3>
-        <div style="width: 38px;"></div>
+        <div style="font-size: 12px; color: var(--ema-text-muted);">${(currentSrsIndex % vocabList.length) + 1} / ${vocabList.length}</div>
       </div>
 
       <!-- Spaced Repetition Flashcard Card -->
-      <div class="ema-current-level-card" style="text-align: center;">
-        <div style="font-size: 11px; color: #f59e0b; font-weight: 800; text-transform: uppercase; margin-bottom: 6px;">
-          🧠 Répétition Espacée (SRS)
+      <div class="ema-current-level-card" style="text-align: center; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 11px; color: #f59e0b; font-weight: 800; text-transform: uppercase;">🧠 Répétition Espacée (SRS)</span>
+          <button onclick="window.EMA.listenWord('${escapeHTML(vocab.word)}')" style="background: rgba(255,255,255,0.1); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;">🔊</button>
         </div>
-        <div style="font-size: 34px; margin-bottom: 4px;">${escapeHTML(vocab.image_icon)}</div>
+        <div style="font-size: 38px; margin-bottom: 6px;">${escapeHTML(vocab.image_icon || '📚')}</div>
         <h2 style="font-size: 26px; margin: 0; color: #fff;">${escapeHTML(vocab.word)}</h2>
-        <div style="font-family: monospace; color: #93c5fd; font-size: 15px; margin: 2px 0 8px 0;">${escapeHTML(vocab.phonetic)}</div>
-        <div style="font-size: 16px; font-weight: 700; color: #f59e0b; margin-bottom: 8px;">${escapeHTML(vocab.translation)}</div>
-        <p style="font-size: 12px; color: #cbd5e1; font-style: italic; margin-bottom: 14px;">"${escapeHTML(vocab.example)}"</p>
+        <div style="font-family: monospace; color: #93c5fd; font-size: 15px; margin: 4px 0 8px 0;">${escapeHTML(vocab.phonetic || '')}</div>
+        <div style="font-size: 17px; font-weight: 700; color: #f59e0b; margin-bottom: 10px;">${escapeHTML(vocab.translation || '')}</div>
+        <p style="font-size: 13px; color: #cbd5e1; font-style: italic; margin-bottom: 16px;">"${escapeHTML(vocab.example || '')}"</p>
         
-        <div style="display: flex; gap: 8px;">
-          <button class="button" style="flex: 1; background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 10px; border-radius: 10px; font-weight: bold;" onclick="window.EMA.srsRate(1)">À revoir</button>
-          <button class="button" style="flex: 1; background: rgba(16,185,129,0.2); border: 1px solid #10b981; color: #6ee7b7; padding: 10px; border-radius: 10px; font-weight: bold;" onclick="window.EMA.srsRate(5)">Maîtrisé ✅</button>
+        <div style="display: flex; gap: 10px;">
+          <button class="button" style="flex: 1; background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer;" onclick="window.EMA.srsRate('${escapeHTML(vocab.id || vocab.word)}', 1)">
+            🔄 À revoir
+          </button>
+          <button class="button" style="flex: 1; background: rgba(16,185,129,0.2); border: 1px solid #10b981; color: #6ee7b7; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer;" onclick="window.EMA.srsRate('${escapeHTML(vocab.id || vocab.word)}', 5)">
+            ✅ Maîtrisé (+15 XP)
+          </button>
         </div>
       </div>
 
       <!-- Additional Practice Tools -->
       <div class="ema-mobile-sec-header">
-        <span>Outils Pratiques</span>
+        <span>Outils d'Entraînement</span>
       </div>
 
       <div class="ema-recom-list">
+        <div class="ema-recom-item" onclick="window.EMA.openAiChatModal()">
+          <div class="ema-recom-icon-box" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">🤖</div>
+          <div class="ema-recom-info">
+            <div class="cat" style="color: #818cf8;">Conversation IA</div>
+            <div class="title">Tuteur de Dialogue & Mises en situation</div>
+          </div>
+          <div class="ema-recom-time">Discuter ❯</div>
+        </div>
+
         <div class="ema-recom-item" onclick="window.EMA.openGrammarModal()">
           <div class="ema-recom-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">📖</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #10b981;">Grammaire</div>
-            <div class="title">Règles & Quiz Interactifs</div>
+            <div class="cat" style="color: #10b981;">Grammaire CECRL</div>
+            <div class="title">Règles & 120 Quiz Interactifs</div>
           </div>
           <div class="ema-recom-time">Faire le test ❯</div>
         </div>
@@ -607,8 +678,8 @@
         <div class="ema-recom-item" onclick="window.EMA.openWritingModal()">
           <div class="ema-recom-icon-box" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa;">✏️</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #60a5fa;">Écriture</div>
-            <div class="title">Atelier de Rédaction IA</div>
+            <div class="cat" style="color: #60a5fa;">Écriture & Rédaction</div>
+            <div class="title">Atelier de Rédaction & Correction IA</div>
           </div>
           <div class="ema-recom-time">Corriger ❯</div>
         </div>
@@ -616,8 +687,8 @@
         <div class="ema-recom-item" onclick="window.EMA.openIdiomsModal()">
           <div class="ema-recom-icon-box" style="background: rgba(236, 72, 153, 0.15); color: #f472b6;">💡</div>
           <div class="ema-recom-info">
-            <div class="cat" style="color: #f472b6;">Expressions</div>
-            <div class="title">Idioms & Phrasal Verbs</div>
+            <div class="cat" style="color: #f472b6;">Expressions & Idioms</div>
+            <div class="title">Phrasal Verbs & Tournures Indispensables</div>
           </div>
           <div class="ema-recom-time">Explorer ❯</div>
         </div>
@@ -641,11 +712,11 @@
       <div class="ema-stats-dual-grid">
         <div class="ema-small-stat-card">
           <div class="label">XP Total</div>
-          <div class="val" style="color: #818cf8;">⚡ ${currentUser.xp.toLocaleString()}</div>
+          <div class="val" style="color: #818cf8;">⚡ ${(currentUser.xp || 0).toLocaleString()}</div>
         </div>
         <div class="ema-small-stat-card">
-          <div class="label">Mots Maîtrisés</div>
-          <div class="val" style="color: #34d399;">📚 134</div>
+          <div class="label">Série Active</div>
+          <div class="val" style="color: #34d399;">🔥 ${currentUser.streak || 1} jours</div>
         </div>
       </div>
 
@@ -695,10 +766,10 @@
       <!-- Certificate Card -->
       <div class="ema-current-level-card" style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); border-color: rgba(251,191,36,0.3); text-align: center;">
         <div style="font-size: 36px; margin-bottom: 4px;">🎓</div>
-        <h3 style="margin: 0; font-size: 18px; color: #fbbf24;">Certificat de Niveau ${escapeHTML(currentUser.level)}</h3>
-        <p style="font-size: 12px; color: #94a3b8; margin: 4px 0 14px 0;">Délivré officiellement à ${escapeHTML(currentUser.name)}</p>
-        <button class="ema-mobile-primary-btn" style="background: #fbbf24; color: #0f172a; padding: 12px; margin-bottom: 0;" onclick="window.EMA.downloadCertificate()">
-          🖨️ Télécharger le Diplôme (PDF)
+        <h3 style="margin: 0; font-size: 18px; color: #fbbf24;">Certificat Officiel CECRL</h3>
+        <p style="font-size: 12px; color: #94a3b8; margin: 4px 0 14px 0;">Délivré au niveau ${escapeHTML(currentUser.level)} à ${escapeHTML(currentUser.name)}</p>
+        <button class="ema-mobile-primary-btn" style="background: #fbbf24; color: #0f172a; padding: 12px; margin-bottom: 0; font-weight: 800;" onclick="window.EMA.downloadCertificate()">
+          🖨️ Obtenir le Diplôme (PDF / Impression)
         </button>
       </div>
     `;
@@ -738,11 +809,13 @@
       }
 
       const micBtn = document.getElementById('ema-mobile-mic-btn');
+      const waveEl = document.getElementById('ema-pronun-wave');
 
       if (isRecording) {
         if (recognitionInstance) recognitionInstance.stop();
         isRecording = false;
         if (micBtn) micBtn.classList.remove('recording');
+        if (waveEl) waveEl.classList.remove('recording');
         return;
       }
 
@@ -750,41 +823,49 @@
       recognitionInstance.lang = 'en-US';
       isRecording = true;
       if (micBtn) micBtn.classList.add('recording');
+      if (waveEl) waveEl.classList.add('recording');
 
       recognitionInstance.onresult = (e) => {
         const spoken = e.results[0][0].transcript.toLowerCase();
         const target = targetWord.toLowerCase();
         
         const dist = levenshteinDistance(spoken, target);
-        const accuracy = Math.max(0, 100 - (dist / target.length * 100)).toFixed(0);
+        const accuracy = Math.max(0, Math.round(100 - (dist / Math.max(1, target.length) * 100)));
         
         AudioFX.playSuccess();
-        currentUser.xp += 25;
+        currentUser.xp = (currentUser.xp || 0) + 25;
         saveProfile();
         
         let feedbackHTML = `
           <div class="ema-score-circle">${accuracy}%</div>
           <div style="text-align:center; margin-bottom: 16px;">
-            <p style="color: var(--ema-text-muted); font-size: 14px; margin-bottom: 4px;">Target: <strong>${escapeHTML(targetWord)}</strong></p>
-            <p style="color: #fff; font-size: 16px;">You said: <strong>${escapeHTML(spoken)}</strong></p>
+            <p style="color: var(--ema-text-muted); font-size: 14px; margin-bottom: 4px;">Mot cible : <strong>${escapeHTML(targetWord)}</strong></p>
+            <p style="color: #fff; font-size: 16px;">Vous avez dit : <strong>${escapeHTML(spoken)}</strong></p>
           </div>
           <div class="ema-feedback-box">
-            <div class="tips-title">Tips:</div>
+            <div class="tips-title">Analyse Phonétique :</div>
             <ul>
-              <li>${accuracy >= 80 ? 'Excellent pronunciation!' : 'Try to match the phonetic sounds more closely.'}</li>
-              <li>Keep practicing to improve!</li>
+              <li>${accuracy >= 80 ? '🌟 Excellente prononciation ! Intonation très naturelle.' : '💡 Rapprochez-vous des sons phonétiques cibles.'}</li>
+              <li>Continuez ainsi pour perfectionner votre accent !</li>
             </ul>
           </div>
         `;
         
-        const footerHTML = `<button class="ema-mobile-primary-btn" onclick="Modal.close(); window.EMA.continuePronunciation()">Continue (+25 XP)</button>`;
+        const footerHTML = `<button class="ema-mobile-primary-btn" onclick="Modal.close(); window.EMA.continuePronunciation()">Continuer (+25 XP)</button>`;
         
-        Modal.open('Pronunciation Result', feedbackHTML, footerHTML);
+        Modal.open('Résultat Prononciation', feedbackHTML, footerHTML);
       };
 
       recognitionInstance.onend = () => {
         isRecording = false;
         if (micBtn) micBtn.classList.remove('recording');
+        if (waveEl) waveEl.classList.remove('recording');
+      };
+
+      recognitionInstance.onerror = () => {
+        isRecording = false;
+        if (micBtn) micBtn.classList.remove('recording');
+        if (waveEl) waveEl.classList.remove('recording');
       };
 
       recognitionInstance.start();
@@ -792,47 +873,69 @@
 
     continuePronunciation() {
       AudioFX.playSuccess();
-      currentUser.xp += 20;
+      currentUser.xp = (currentUser.xp || 0) + 15;
       saveProfile();
       currentPronunIndex++;
-      renderApp(); // re-render speak screen to show next word
+      renderApp();
     },
 
     startDailyLesson() {
       AudioFX.playSuccess();
-      currentUser.daily_spent = Math.min(currentUser.daily_goal, currentUser.daily_spent + 5);
-      currentUser.xp += 30;
+      currentUser.daily_spent = Math.min(currentUser.daily_goal || 30, (currentUser.daily_spent || 0) + 5);
+      currentUser.xp = (currentUser.xp || 0) + 30;
       saveProfile();
-      window.EMA.navTo('speak');
+      window.EMA.openAiChatModal();
     },
 
-    async srsRate(quality) {
+    async srsRate(wordId, quality) {
       AudioFX.playTap();
-      // Example integration
-      await apiCall('srs/rate', 'POST', { item_id: 1, quality: quality });
-      AudioFX.playSuccess();
-      currentUser.xp += 10;
+      // Send to REST API
+      apiCall('srs/review', 'POST', { word_id: wordId, rating: quality });
+      
+      if (quality >= 3) {
+        AudioFX.playSuccess();
+        currentUser.xp = (currentUser.xp || 0) + 15;
+      } else {
+        AudioFX.playError();
+      }
+      
+      currentSrsIndex++;
       saveProfile();
       renderApp();
     },
 
-    openGrammarModal() {
+    openGrammarModal(grammarId = null) {
       AudioFX.playTap();
-      const levelModules = appData.grammar_modules.filter(m => m.level === activeLevelId);
-      const module = levelModules.length > 0 ? levelModules[Math.floor(Math.random() * levelModules.length)] : appData.grammar_modules[0];
+      let modules = (appData.grammar_modules || []).filter(m => m.level === activeLevelId);
+      if (modules.length === 0) modules = appData.grammar_modules || [];
+      
+      let module = modules[0];
+      if (grammarId) {
+        const found = (appData.grammar_modules || []).find(m => m.id === grammarId);
+        if (found) module = found;
+      } else if (modules.length > 0) {
+        module = modules[Math.floor(Math.random() * modules.length)];
+      }
+
+      if (!module || !module.questions || module.questions.length === 0) {
+        alert("Aucun quiz de grammaire disponible pour ce niveau.");
+        return;
+      }
+
       const questions = module.questions;
       let qIndex = 0;
       let score = 0;
       
       const renderQuestion = () => {
         if (qIndex >= questions.length) {
-          Modal.open('Grammar Quiz Complete', `
+          Modal.open('Quiz de Grammaire Terminé', `
             <div style="text-align:center;">
               <div class="ema-score-circle">${score}/${questions.length}</div>
-              <p>Great job! You earned ${score * 15} XP.</p>
+              <p style="font-size: 15px; color: #fff;">Félicitations ! Vous gagnez ${score * 15} XP.</p>
             </div>
-          `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Finish</button>`);
-          currentUser.xp += score * 15;
+          `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Terminer</button>`);
+          currentUser.xp = (currentUser.xp || 0) + (score * 15);
+          apiCall('lesson/complete', 'POST', { lesson_id: module.id, level_id: activeLevelId, xp: score * 15, score: Math.round((score/questions.length)*100) });
           saveProfile();
           renderApp();
           return;
@@ -840,146 +943,207 @@
         
         const q = questions[qIndex];
         const html = `
-          <div style="font-size:16px; font-weight:700; margin-bottom: 20px;">${escapeHTML(q.question)}</div>
+          <div style="font-size: 12px; color: #10b981; font-weight: 800; text-transform: uppercase; margin-bottom: 8px;">
+            ${escapeHTML(module.title || 'Grammaire')} (${qIndex + 1}/${questions.length})
+          </div>
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 20px; line-height: 1.4;">${escapeHTML(q.question)}</div>
           <div id="quiz-options">
-            ${q.options.map((opt, i) => `<div class="ema-quiz-option" onclick="window.EMA.submitGrammarAnswer(${i}, ${q.correct_index}, '${escapeHTML(q.explanation)}')">${escapeHTML(opt)}</div>`).join('')}
+            ${q.options.map((opt, i) => `
+              <div class="ema-quiz-option" onclick="window.EMA.submitGrammarAnswer(${i}, ${q.correct_index}, '${escapeHTML(q.explanation || '')}')">
+                <span>${escapeHTML(opt)}</span>
+              </div>
+            `).join('')}
           </div>
           <div id="quiz-feedback" class="ema-quiz-feedback"></div>
         `;
         
         window.EMA.submitGrammarAnswer = (idx, correctIdx, exp) => {
           const options = document.querySelectorAll('.ema-quiz-option');
-          options.forEach(o => o.style.pointerEvents = 'none'); // disable clicks
+          options.forEach(o => o.style.pointerEvents = 'none');
           
+          const feedback = document.getElementById('quiz-feedback');
           if (idx === correctIdx) {
-            options[idx].classList.add('correct');
+            if (options[idx]) options[idx].classList.add('correct');
             AudioFX.playSuccess();
             score++;
-            document.getElementById('quiz-feedback').className = 'ema-quiz-feedback show success';
-            document.getElementById('quiz-feedback').innerHTML = '✅ Correct! ' + exp;
+            if (feedback) {
+              feedback.className = 'ema-quiz-feedback show success';
+              feedback.innerHTML = '✅ Bravo ! Réponse exacte. ' + exp;
+            }
           } else {
-            options[idx].classList.add('incorrect');
-            options[correctIdx].classList.add('correct');
-            AudioFX.playTap();
-            document.getElementById('quiz-feedback').className = 'ema-quiz-feedback show error';
-            document.getElementById('quiz-feedback').innerHTML = '❌ Incorrect. ' + exp;
+            if (options[idx]) options[idx].classList.add('incorrect');
+            if (options[correctIdx]) options[correctIdx].classList.add('correct');
+            AudioFX.playError();
+            if (feedback) {
+              feedback.className = 'ema-quiz-feedback show error';
+              feedback.innerHTML = '❌ Oups ! ' + exp;
+            }
           }
           
           setTimeout(() => {
             qIndex++;
             renderQuestion();
-          }, 2500);
+          }, 2000);
         };
         
-        Modal.open('Grammar Quiz', html);
+        Modal.open('Quiz Grammaire - ' + (module.title || 'CECRL'), html);
       };
       
       renderQuestion();
     },
 
-    openListeningModal() {
+    openListeningModal(listeningId = null) {
       AudioFX.playTap();
-      const levelExercises = appData.listening_exercises.filter(e => e.level === activeLevelId);
-      const exercise = levelExercises.length > 0 ? levelExercises[Math.floor(Math.random() * levelExercises.length)] : appData.listening_exercises[0];
+      let exercises = (appData.listening_exercises || []).filter(e => e.level === activeLevelId);
+      if (exercises.length === 0) exercises = appData.listening_exercises || [];
+      
+      let exercise = exercises[0];
+      if (listeningId) {
+        const found = (appData.listening_exercises || []).find(e => e.id === listeningId);
+        if (found) exercise = found;
+      } else if (exercises.length > 0) {
+        exercise = exercises[Math.floor(Math.random() * exercises.length)];
+      }
+
+      if (!exercise) return;
       
       const html = `
-        <div style="text-align:center; margin-bottom: 24px;">
+        <div style="text-align:center; margin-bottom: 20px;">
           <button class="ema-btn-circle-listen" style="margin: 0 auto;" onclick="window.EMA.listenWord('${escapeHTML(exercise.audio_text)}')">🔊</button>
-          <div style="font-size: 13px; color: var(--ema-text-muted); margin-top: 10px;">Tap to play audio</div>
+          <div style="font-size: 13px; color: #93c5fd; margin-top: 10px; font-weight: 700;">Appuyez pour écouter le dialogue</div>
         </div>
-        <div style="font-size:16px; font-weight:700; margin-bottom: 20px;">${escapeHTML(exercise.question)}</div>
+        <div style="font-size: 15px; font-weight: 700; margin-bottom: 18px; color: #fff;">${escapeHTML(exercise.question)}</div>
         <div id="listen-options">
-          ${exercise.options.map((opt, i) => `<div class="ema-quiz-option" onclick="window.EMA.submitListeningAnswer(${i}, ${exercise.correct_index})">${escapeHTML(opt)}</div>`).join('')}
+          ${exercise.options.map((opt, i) => `
+            <div class="ema-quiz-option" onclick="window.EMA.submitListeningAnswer(${i}, ${exercise.correct_index})">
+              <span>${escapeHTML(opt)}</span>
+            </div>
+          `).join('')}
         </div>
         <div id="listen-feedback" class="ema-quiz-feedback"></div>
       `;
       
       window.EMA.submitListeningAnswer = (idx, correctIdx) => {
         const options = document.querySelectorAll('.ema-quiz-option');
-        options.forEach(o => o.style.pointerEvents = 'none'); // disable clicks
+        options.forEach(o => o.style.pointerEvents = 'none');
+        const feedback = document.getElementById('listen-feedback');
         
         if (idx === correctIdx) {
-          options[idx].classList.add('correct');
+          if (options[idx]) options[idx].classList.add('correct');
           AudioFX.playSuccess();
-          document.getElementById('listen-feedback').className = 'ema-quiz-feedback show success';
-          document.getElementById('listen-feedback').innerHTML = '✅ Excellent listening!';
-          currentUser.xp += 20;
+          if (feedback) {
+            feedback.className = 'ema-quiz-feedback show success';
+            feedback.innerHTML = '✅ Excellente compréhension orale ! (+20 XP)';
+          }
+          currentUser.xp = (currentUser.xp || 0) + 20;
           saveProfile();
-          setTimeout(() => Modal.close(), 2000);
+          setTimeout(() => Modal.close(), 1800);
         } else {
-          options[idx].classList.add('incorrect');
-          options[correctIdx].classList.add('correct');
-          AudioFX.playTap();
-          document.getElementById('listen-feedback').className = 'ema-quiz-feedback show error';
-          document.getElementById('listen-feedback').innerHTML = '❌ Not quite right.';
-          setTimeout(() => Modal.close(), 2000);
+          if (options[idx]) options[idx].classList.add('incorrect');
+          if (options[correctIdx]) options[correctIdx].classList.add('correct');
+          AudioFX.playError();
+          if (feedback) {
+            feedback.className = 'ema-quiz-feedback show error';
+            feedback.innerHTML = '❌ Réécoutez attentivement la phrase audio.';
+          }
+          setTimeout(() => Modal.close(), 2200);
         }
       };
       
-      Modal.open('Listening Practice', html);
+      Modal.open('Compréhension Orale', html);
     },
 
-    openWritingModal() {
+    openWritingModal(promptId = null) {
       AudioFX.playTap();
-      const levelPrompts = appData.writing_prompts.filter(p => p.level === activeLevelId);
-      const promptData = levelPrompts.length > 0 ? levelPrompts[Math.floor(Math.random() * levelPrompts.length)] : appData.writing_prompts[0];
+      let prompts = (appData.writing_prompts || []).filter(p => p.level === activeLevelId);
+      if (prompts.length === 0) prompts = appData.writing_prompts || [];
+      
+      let promptData = prompts[0];
+      if (promptId) {
+        const found = (appData.writing_prompts || []).find(p => p.id === promptId);
+        if (found) promptData = found;
+      } else if (prompts.length > 0) {
+        promptData = prompts[Math.floor(Math.random() * prompts.length)];
+      }
+
+      if (!promptData) return;
       
       const html = `
-        <div style="font-size: 15px; margin-bottom: 16px;"><strong>Prompt:</strong> ${escapeHTML(promptData.prompt)}</div>
-        <textarea id="writing-textarea" class="ema-writing-textarea" placeholder="Start writing here..."></textarea>
+        <div style="font-size: 14px; margin-bottom: 14px; background: rgba(37,99,235,0.15); border-left: 3px solid #3b82f6; padding: 10px 14px; border-radius: 8px;">
+          <strong>Sujet :</strong> ${escapeHTML(promptData.prompt)}
+        </div>
+        <div class="ema-writing-meta">
+          <span>Objectif : min 30 mots</span>
+          <span id="ema-word-counter">0 mots</span>
+        </div>
+        <textarea id="writing-textarea" class="ema-writing-textarea" placeholder="Rédigez votre réponse en anglais ici..." oninput="window.EMA.updateWordCount()"></textarea>
       `;
       
-      const footer = `<button class="ema-mobile-primary-btn" onclick="window.EMA.submitWriting()">Submit for Correction</button>`;
+      const footer = `<button class="ema-mobile-primary-btn" id="ema-writing-btn" onclick="window.EMA.submitWriting()">Soumettre pour Correction IA</button>`;
       
+      window.EMA.updateWordCount = () => {
+        const text = (document.getElementById('writing-textarea') && document.getElementById('writing-textarea').value) || '';
+        const count = text.trim() ? text.trim().split(/\s+/).length : 0;
+        const counter = document.getElementById('ema-word-counter');
+        if (counter) counter.innerText = `${count} mots`;
+      };
+
       window.EMA.submitWriting = async () => {
         const text = document.getElementById('writing-textarea').value.trim();
-        if (!text) return;
+        if (!text) {
+          alert("Veuillez saisir votre texte.");
+          return;
+        }
         
-        const btn = document.querySelector('.ema-modal-footer button');
-        btn.innerHTML = 'Submitting...';
-        btn.disabled = true;
+        const btn = document.getElementById('ema-writing-btn');
+        if (btn) {
+          btn.innerHTML = '⏳ Analyse IA en cours...';
+          btn.disabled = true;
+        }
         
-        let result = await apiCall('ai/correct-writing', 'POST', { text });
-        if (!result) {
-          // Local fallback
-          const wordCount = text.split(/\s+/).length;
-          const score = Math.min(100, Math.max(0, 50 + wordCount * 2)); // rough scoring
+        let result = await apiCall('ai/correct-writing', 'POST', { text, prompt_id: promptData.id });
+        if (!result || !result.score) {
+          const words = text.split(/\s+/).filter(Boolean);
+          const wordCount = words.length;
+          const score = Math.min(95, Math.max(50, 60 + (wordCount > 30 ? 15 : wordCount * 0.5)));
           result = {
-            score: score,
+            score: Math.round(score),
+            word_count: wordCount,
+            cefr_level: wordCount > 40 ? 'B1+' : 'A2',
             feedback: [
-              "Good attempt!",
-              "Try to use more complex vocabulary.",
-              `Word count: ${wordCount}`
+              { type: 'success', message: `Longueur : ${wordCount} mots analysés.` },
+              { type: 'tip', message: "Conseil : Utilisez des connecteurs comme 'Moreover', 'However', 'In addition'." }
             ]
           };
         }
         
         AudioFX.playSuccess();
-        currentUser.xp += 30;
+        currentUser.xp = (currentUser.xp || 0) + 30;
         saveProfile();
         
         const feedbackHTML = `
           <div class="ema-score-circle">${result.score}/100</div>
+          <div style="text-align: center; margin-bottom: 16px;">
+            <span class="ema-header-badge" style="background: rgba(16,185,129,0.2); color: #34d399; border-color: #10b981;">Niveau estimé : ${escapeHTML(result.cefr_level || 'B1')}</span>
+          </div>
           <div class="ema-feedback-box">
-            <div class="tips-title">Feedback:</div>
+            <div class="tips-title">Retours & Analyse :</div>
             <ul>
-              ${result.feedback.map(f => `<li>${escapeHTML(f)}</li>`).join('')}
+              ${(result.feedback || []).map(f => `<li>${escapeHTML(f.message || f)}</li>`).join('')}
             </ul>
           </div>
         `;
         
-        Modal.open('Writing Corrected', feedbackHTML, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Awesome (+30 XP)</button>`);
+        Modal.open('Évaluation de Rédaction', feedbackHTML, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Super (+30 XP)</button>`);
       };
       
-      Modal.open('Writing Exercise', html, footer);
+      Modal.open('Atelier de Rédaction IA', html, footer);
     },
 
     openIdiomsModal() {
       AudioFX.playTap();
-      const items = [...appData.phrasal_verbs.filter(i => i.level === activeLevelId), ...appData.idioms_expressions.filter(i => i.level === activeLevelId)];
-      if (items.length === 0) {
-        items.push(...appData.phrasal_verbs, ...appData.idioms_expressions);
-      }
+      const items = [...(appData.phrasal_verbs || []), ...(appData.idioms_expressions || [])];
+      if (items.length === 0) return;
       let idx = 0;
       
       const renderCard = () => {
@@ -990,39 +1154,301 @@
             <div class="ema-flashcard-meaning">${escapeHTML(item.meaning)}</div>
             <div class="ema-flashcard-example">"${escapeHTML(item.example)}"</div>
           </div>
-          <div style="display:flex; justify-content:space-between; margin-top:24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px;">
             <button class="ema-header-btn-back" style="background:#2563eb" onclick="window.EMA.prevIdiom()">‹</button>
-            <div style="color:var(--ema-text-muted); font-size:14px; align-self:center;">${idx + 1} / ${items.length}</div>
+            <button onclick="window.EMA.listenWord('${escapeHTML(item.verb || item.expression)}')" style="background: rgba(255,255,255,0.1); border: none; color: #fff; width: 36px; height: 36px; border-radius: 50%; cursor: pointer;">🔊</button>
+            <div style="color:var(--ema-text-muted); font-size:14px;">${idx + 1} / ${items.length}</div>
             <button class="ema-header-btn-back" style="background:#2563eb" onclick="window.EMA.nextIdiom()">›</button>
           </div>
         `;
-        Modal.open('Flashcards', html);
+        Modal.open('Flashcards Expressions & Phrasal Verbs', html);
       };
       
       window.EMA.prevIdiom = () => {
-        if (idx > 0) idx--;
-        else idx = items.length - 1;
+        idx = idx > 0 ? idx - 1 : items.length - 1;
         renderCard();
       };
       
       window.EMA.nextIdiom = () => {
-        if (idx < items.length - 1) idx++;
-        else idx = 0;
+        idx = idx < items.length - 1 ? idx + 1 : 0;
         renderCard();
       };
       
       renderCard();
     },
 
+    /* -------------------------------------------------------------
+       AI CONVERSATION COACH (CHAT COACH MODAL)
+       ------------------------------------------------------------- */
+    openAiChatModal(scenarioId = null) {
+      AudioFX.playTap();
+      if (scenarioId) currentChatScenario = scenarioId;
+
+      const scenarios = [
+        { id: 'hotel_checkin', title: '🏨 Hotel Check-in', desc: 'Arrivée à l\'hôtel, choix de chambre et services' },
+        { id: 'restaurant_order', title: '🍽️ Restaurant Order', desc: 'Commander au restaurant, plats et boissons' },
+        { id: 'job_interview', title: '💼 Job Interview', desc: 'Présentation de votre parcours et compétences' },
+        { id: 'casual_talk', title: '☕ Casual Small Talk', desc: 'Loisirs, météo, voyages et projets du week-end' },
+        { id: 'general', title: '🤖 Conversation Libre', desc: 'Échangez librement avec votre tuteur IA' }
+      ];
+
+      // Initial greetings per scenario
+      const initialMsgs = {
+        hotel_checkin: "Hello! Welcome to the Grand Palace Hotel. Do you have a reservation with us today?",
+        restaurant_order: "Good evening! Welcome to Bistro Parisien. Table for one, or are you waiting for someone?",
+        job_interview: "Hello, thank you for coming in today. Could you start by introducing yourself briefly?",
+        casual_talk: "Hey there! How has your week been so far? Did you do anything fun?",
+        general: "Hello! I am your AI English coach. What would you like to practice today?"
+      };
+
+      if (chatHistory.length === 0 || scenarioId) {
+        chatHistory = [{
+          role: 'assistant',
+          content: initialMsgs[currentChatScenario] || initialMsgs.general
+        }];
+        speakEnglish(chatHistory[0].content);
+      }
+
+      const renderChatUI = () => {
+        const activeSc = scenarios.find(s => s.id === currentChatScenario) || scenarios[0];
+        
+        const html = `
+          <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; scrollbar-width: none;">
+            ${scenarios.map(s => `
+              <button onclick="window.EMA.switchChatScenario('${s.id}')" style="flex-shrink: 0; background: ${currentChatScenario === s.id ? 'var(--ema-primary)' : '#111933'}; border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 11px; font-weight: 700; padding: 6px 10px; border-radius: 999px; cursor: pointer;">
+                ${s.title}
+              </button>
+            `).join('')}
+          </div>
+
+          <div class="ema-chat-container">
+            <div class="ema-chat-messages" id="ema-chat-box">
+              ${chatHistory.map(msg => `
+                <div class="ema-chat-bubble ${msg.role === 'user' ? 'user' : 'ai'}">
+                  <div class="speaker-tag">
+                    ${msg.role === 'user' ? '👤 Vous' : '🤖 Coach IA'}
+                    ${msg.role === 'assistant' ? `<button class="ema-chat-listen-btn" onclick="window.EMA.listenWord('${escapeHTML(msg.content)}')">🔊</button>` : ''}
+                  </div>
+                  <div>${escapeHTML(msg.content)}</div>
+                  ${msg.correction ? `<div class="ema-chat-correction">💡 Correction : ${escapeHTML(msg.correction)}</div>` : ''}
+                  ${msg.tip ? `<div class="ema-chat-tip">✨ Astuce : ${escapeHTML(msg.tip)}</div>` : ''}
+                </div>
+              `).join('')}
+            </div>
+
+            <div class="ema-chat-input-bar">
+              <button class="ema-chat-mic-btn" id="ema-chat-mic-btn" onclick="window.EMA.toggleChatMic()" title="Parler au micro">🎙️</button>
+              <input type="text" id="ema-chat-text-input" class="ema-chat-input" placeholder="Répondez en anglais..." onkeydown="if(event.key==='Enter') window.EMA.sendChatMessage()" />
+              <button class="ema-chat-send-btn" onclick="window.EMA.sendChatMessage()" title="Envoyer">➔</button>
+            </div>
+          </div>
+        `;
+
+        Modal.open('🤖 Tuteur de Conversation IA', html);
+        setTimeout(() => {
+          const box = document.getElementById('ema-chat-box');
+          if (box) box.scrollTop = box.scrollHeight;
+        }, 100);
+      };
+
+      window.EMA.switchChatScenario = (sId) => {
+        AudioFX.playTap();
+        currentChatScenario = sId;
+        chatHistory = [{
+          role: 'assistant',
+          content: initialMsgs[sId] || initialMsgs.general
+        }];
+        speakEnglish(chatHistory[0].content);
+        renderChatUI();
+      };
+
+      window.EMA.sendChatMessage = async (spokenText = null) => {
+        const input = document.getElementById('ema-chat-text-input');
+        const text = spokenText || (input ? input.value.trim() : '');
+        if (!text) return;
+        if (input) input.value = '';
+
+        chatHistory.push({ role: 'user', content: text });
+        renderChatUI();
+
+        // Local smart reply generator fallback
+        const smartLocalCoach = (msg, sc) => {
+          const m = msg.toLowerCase();
+          let corr = null;
+          let tip = null;
+          if (/\bi am agree\b/i.test(msg)) { corr = "Dites 'I agree' (pas 'I am agree')."; tip = "'Agree' est déjà un verbe."; }
+          if (/\bhe go\b/i.test(msg)) { corr = "N'oubliez pas le 's' à la 3e personne : 'He goes'."; }
+          if (/\bi have (\d+) years\b/i.test(msg)) { corr = "En anglais dites 'I am ... years old'."; }
+
+          if (sc === 'hotel_checkin') {
+            return {
+              reply: "Wonderful! I found your booking. Would you like a room with a king-sized bed or two twin beds?",
+              correction: corr,
+              tip: tip || "Répondez avec : 'I would prefer a king-sized bed, please.'"
+            };
+          } else if (sc === 'restaurant_order') {
+            return {
+              reply: "Excellent choice! Would you like still or sparkling water to drink with that?",
+              correction: corr,
+              tip: tip || "Essayez : 'A sparkling water with ice and lemon, please.'"
+            };
+          } else if (sc === 'job_interview') {
+            return {
+              reply: "That is very impressive experience. What would you say is your greatest professional strength?",
+              correction: corr,
+              tip: tip || "Utilisez : 'My greatest strength is my problem-solving ability...'"
+            };
+          } else {
+            return {
+              reply: "That sounds fascinating! Could you tell me a little bit more about that?",
+              correction: corr,
+              tip: tip || "Développez votre réponse avec des connecteurs logiques."
+            };
+          }
+        };
+
+        const res = await apiCall('ai/chat', 'POST', {
+          message: text,
+          scenario_id: currentChatScenario,
+          history: chatHistory.slice(-6)
+        });
+
+        const replyData = (res && res.reply) ? res : smartLocalCoach(text, currentChatScenario);
+
+        chatHistory.push({
+          role: 'assistant',
+          content: replyData.reply,
+          correction: replyData.correction,
+          tip: replyData.tip
+        });
+
+        AudioFX.playSuccess();
+        currentUser.xp = (currentUser.xp || 0) + 20;
+        saveProfile();
+        speakEnglish(replyData.reply);
+        renderChatUI();
+      };
+
+      window.EMA.toggleChatMic = () => {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          alert("Reconnaissance vocale disponible sur Chrome, Safari et Edge.");
+          return;
+        }
+
+        const micBtn = document.getElementById('ema-chat-mic-btn');
+        if (isRecording) {
+          if (recognitionInstance) recognitionInstance.stop();
+          isRecording = false;
+          if (micBtn) micBtn.classList.remove('recording');
+          return;
+        }
+
+        recognitionInstance = new SpeechRec();
+        recognitionInstance.lang = 'en-US';
+        isRecording = true;
+        if (micBtn) micBtn.classList.add('recording');
+
+        recognitionInstance.onresult = (e) => {
+          const spoken = e.results[0][0].transcript;
+          window.EMA.sendChatMessage(spoken);
+        };
+
+        recognitionInstance.onend = () => {
+          isRecording = false;
+          if (micBtn) micBtn.classList.remove('recording');
+        };
+
+        recognitionInstance.onerror = () => {
+          isRecording = false;
+          if (micBtn) micBtn.classList.remove('recording');
+        };
+
+        recognitionInstance.start();
+      };
+
+      renderChatUI();
+    },
+
+    /* -------------------------------------------------------------
+       UNIT LESSONS DRAWER
+       ------------------------------------------------------------- */
+    openUnitDetail(unitId, unitTitle) {
+      AudioFX.playTap();
+      let targetUnit = null;
+      (appData.levels || []).forEach(lvl => {
+        (lvl.units || []).forEach(u => {
+          if (u.id === unitId) targetUnit = u;
+        });
+      });
+
+      if (!targetUnit || !targetUnit.lessons || targetUnit.lessons.length === 0) {
+        window.EMA.openGrammarModal();
+        return;
+      }
+
+      const typeLabels = {
+        vocabulary: 'Vocabulaire SRS',
+        grammar: 'Grammaire & Quiz',
+        pronunciation: 'Prononciation IA',
+        speaking: 'Dialogue / Coach',
+        writing: 'Atelier Écriture'
+      };
+
+      const html = `
+        <div style="font-size: 13px; color: var(--ema-text-muted); margin-bottom: 14px;">
+          Leçons du module <strong>${escapeHTML(targetUnit.title || unitTitle)}</strong> :
+        </div>
+        <div>
+          ${targetUnit.lessons.map(l => `
+            <div class="ema-unit-lesson-row" onclick="window.EMA.launchLesson('${l.type || 'grammar'}', '${l.id}')">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">
+                  ${l.type === 'grammar' ? '📖' : l.type === 'vocabulary' ? '🧠' : l.type === 'speaking' ? '🤖' : l.type === 'writing' ? '✍️' : '🎙️'}
+                </span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 700; color: #fff;">${escapeHTML(l.title)}</div>
+                  <span class="ema-lesson-type-badge ema-lesson-type-${l.type || 'grammar'}">
+                    ${typeLabels[l.type] || l.type}
+                  </span>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: #60a5fa; font-weight: 700;">
+                ${l.duration || '10 min'} ➔
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      Modal.open(unitTitle, html, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Fermer</button>`);
+    },
+
+    launchLesson(type, lessonId) {
+      Modal.close();
+      if (type === 'grammar') {
+        window.EMA.openGrammarModal();
+      } else if (type === 'vocabulary') {
+        window.EMA.navTo('practice');
+      } else if (type === 'speaking') {
+        window.EMA.openAiChatModal();
+      } else if (type === 'writing') {
+        window.EMA.openWritingModal();
+      } else {
+        window.EMA.navTo('speak');
+      }
+    },
+
     openAssessmentModal() {
       AudioFX.playTap();
-      const questions = appData.initial_assessment.questions;
+      const questions = (appData.initial_assessment && appData.initial_assessment.questions) || [];
+      if (questions.length === 0) return;
+      
       let qIndex = 0;
       let score = 0;
       
       const renderAssessment = () => {
         if (qIndex >= questions.length) {
-          // Calculate level
           let newLevel = 'A1';
           let levelName = 'Beginner';
           if (score > 12) { newLevel = 'C1'; levelName = 'Advanced'; }
@@ -1032,22 +1458,22 @@
           
           currentUser.level = newLevel;
           currentUser.level_name = levelName;
-          currentUser.xp += 100;
+          currentUser.xp = (currentUser.xp || 0) + 100;
+          activeLevelId = newLevel;
           saveProfile();
           
-          Modal.open('Assessment Complete', `
+          Modal.open('Évaluation Terminée', `
             <div style="text-align:center;">
-              <div style="font-size: 40px; margin-bottom: 10px;">🎓</div>
-              <h2 style="margin: 0 0 10px 0; color: #fff;">${newLevel} Level Achieved!</h2>
-              <p style="color: var(--ema-text-muted);">You scored ${score} points. Your estimated level is ${levelName}. (+100 XP)</p>
+              <div style="font-size: 44px; margin-bottom: 10px;">🎓✨</div>
+              <h2 style="margin: 0 0 10px 0; color: #fff;">Niveau ${newLevel} Débloqué !</h2>
+              <p style="color: var(--ema-text-muted); font-size: 14px;">Score : ${score} points. Votre niveau de départ a été calibré sur <strong>${levelName}</strong> (+100 XP).</p>
             </div>
-          `, `<button class="ema-mobile-primary-btn" onclick="Modal.close(); window.EMA.navTo('home')">Start Learning</button>`);
+          `, `<button class="ema-mobile-primary-btn" onclick="Modal.close(); window.EMA.navTo('home')">Commencer mon parcours</button>`);
           return;
         }
         
         const q = questions[qIndex];
         
-        // Progress indicators
         const progressHTML = `
           <div class="ema-assessment-progress">
             ${questions.map((_, i) => `<div class="ema-assessment-progress-dot ${i === qIndex ? 'active' : (i < qIndex ? 'completed' : '')}"></div>`).join('')}
@@ -1056,9 +1482,9 @@
         
         const html = `
           ${progressHTML}
-          <div style="font-size:16px; font-weight:700; margin-bottom: 20px;">${escapeHTML(q.question)}</div>
+          <div style="font-size:16px; font-weight:700; margin-bottom: 20px; line-height: 1.4;">${escapeHTML(q.question)}</div>
           <div id="assess-options">
-            ${q.options.map((opt, i) => `<div class="ema-quiz-option" onclick="window.EMA.submitAssessment(${i}, ${q.correct_index}, ${q.points})">${escapeHTML(opt)}</div>`).join('')}
+            ${q.options.map((opt, i) => `<div class="ema-quiz-option" onclick="window.EMA.submitAssessment(${i}, ${q.correct_index}, ${q.points || 2})"><span>${escapeHTML(opt)}</span></div>`).join('')}
           </div>
         `;
         
@@ -1067,22 +1493,22 @@
           options.forEach(o => o.style.pointerEvents = 'none');
           
           if (idx === correctIdx) {
-            options[idx].classList.add('correct');
+            if (options[idx]) options[idx].classList.add('correct');
             score += points;
             AudioFX.playSuccess();
           } else {
-            options[idx].classList.add('incorrect');
-            options[correctIdx].classList.add('correct');
-            AudioFX.playTap();
+            if (options[idx]) options[idx].classList.add('incorrect');
+            if (options[correctIdx]) options[correctIdx].classList.add('correct');
+            AudioFX.playError();
           }
           
           setTimeout(() => {
             qIndex++;
             renderAssessment();
-          }, 1500);
+          }, 1200);
         };
         
-        Modal.open('Level Assessment', html);
+        Modal.open('Test d\'Évaluation CECRL', html);
       };
       
       renderAssessment();
@@ -1090,138 +1516,31 @@
     
     downloadCertificate() {
       AudioFX.playTap();
-      // Check if api_root looks like a wordpress endpoint
-      if (CONFIG.api_root.includes('wp-json')) {
-        const url = CONFIG.api_root.replace('wp-json/english-master-ai/v1/', '') + 
-          '?ema_certificate=1&user_name=' + encodeURIComponent(currentUser.name) + 
-          '&level=' + encodeURIComponent(currentUser.level) + 
-          '&level_name=' + encodeURIComponent(currentUser.level_name);
+      // If running inside WordPress
+      if (CONFIG.api_root && CONFIG.api_root.includes('wp-json')) {
+        const base = CONFIG.api_root.split('wp-json')[0];
+        const url = base + '?ema_certificate=1&user_name=' + encodeURIComponent(currentUser.name || 'Alex Martin') + 
+          '&level=' + encodeURIComponent(currentUser.level || 'B1') + 
+          '&level_name=' + encodeURIComponent(currentUser.level_name || 'Intermediate');
         window.open(url, '_blank');
       } else {
-        // Fallback to modal display
-        Modal.open('Certificate', `
-          <div style="text-align: center; padding: 20px 0;">
-            <div style="font-size: 48px; margin-bottom: 10px;">🎓</div>
-            <h2 style="color: #fbbf24; margin: 0 0 10px 0;">Certificate of Achievement</h2>
-            <p style="color: #fff; font-size: 16px;">This certifies that</p>
-            <h3 style="color: #fff; font-size: 24px; margin: 10px 0;">${escapeHTML(currentUser.name)}</h3>
-            <p style="color: #fff; font-size: 16px;">has achieved</p>
-            <h3 style="color: var(--ema-primary); font-size: 22px; margin: 10px 0;">${escapeHTML(currentUser.level)} - ${escapeHTML(currentUser.level_name)}</h3>
-          </div>
-        `);
-      }
-    },
-
-    openUnitDetail(id, title) {
-      AudioFX.playTap();
-      window.EMA.navTo('speak');
-    },
-
-    openFirebaseModal() {
-      AudioFX.playTap();
-      const currentKey = localStorage.getItem('ema_firebase_api_key') || (CONFIG.firebase && CONFIG.firebase.apiKey) || '';
-      const projectId = (CONFIG.firebase && CONFIG.firebase.projectId) || 'english-master-ai-4936d';
-
-      const html = `
-        <div style="font-size: 14px; margin-bottom: 14px;">
-          Synchronisez votre application avec votre base de données <strong>Google Firebase Firestore</strong> pour du contenu illimité et une synchronisation cloud en temps réel.
-        </div>
-
-        <div style="background: #111933; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
-          <div style="font-size: 11px; color: var(--ema-text-muted); margin-bottom: 4px;">PROJECT ID :</div>
-          <div style="font-size: 14px; font-weight: bold; color: #60a5fa; font-family: monospace;">${escapeHTML(projectId)}</div>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; font-size: 12px; color: var(--ema-text-muted); font-weight: 700; margin-bottom: 6px;">
-            CLÉ API WEB (apiKey Firebase) :
-          </label>
-          <input type="text" id="ema-fb-api-key" value="${escapeHTML(currentKey)}" placeholder="AIzaSy..." 
-            style="width: 100%; box-sizing: border-box; background: #111933; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; padding: 12px; font-size: 13px; font-family: monospace;" />
-          <div style="font-size: 11px; color: var(--ema-text-muted); margin-top: 6px;">
-            Trouvez-la dans <em>Paramètres du projet > Général > Vos applications (Web)</em> dans la console Firebase.
-          </div>
-        </div>
-      `;
-
-      const footer = `
-        <button class="ema-mobile-primary-btn" onclick="window.EMA.saveFirebaseKey()">
-          💾 Enregistrer & Connecter
-        </button>
-      `;
-
-      Modal.open('🔥 Configuration Firebase', html, footer);
-    },
-
-    async saveFirebaseKey() {
-      const input = document.getElementById('ema-fb-api-key');
-      if (!input) return;
-      const key = input.value.trim();
-      localStorage.setItem('ema_firebase_api_key', key);
-      
-      if (!CONFIG.firebase) CONFIG.firebase = {};
-      CONFIG.firebase.apiKey = key;
-
-      if (window.EMA_Firebase) {
-        const ok = await window.EMA_Firebase.init({
-          projectId: "english-master-ai-4936d",
-          authDomain: "english-master-ai-4936d.firebaseapp.com",
-          storageBucket: "english-master-ai-4936d.appspot.com",
-          apiKey: key
-        });
-
-        if (ok) {
-          AudioFX.playSuccess();
-          Modal.open('🔥 Connexion Réussie', `
-            <div style="text-align: center; padding: 10px 0;">
-              <div style="font-size: 40px; margin-bottom: 10px;">✅</div>
-              <h3 style="color: #10b981; margin: 0 0 10px 0;">Connecté à Firestore !</h3>
-              <p style="font-size: 13px; color: #cbd5e1;">Votre application est maintenant reliée au projet <code>english-master-ai-4936d</code>.</p>
+        // High-definition certificate modal preview for standalone mode
+        Modal.open('🎓 Diplôme Officiel', `
+          <div style="text-align: center; padding: 10px 0; border: 4px solid #1e3a8a; border-radius: 12px; background: #ffffff; color: #0f172a; margin-bottom: 14px;">
+            <div style="font-size: 40px;">🏅</div>
+            <h3 style="color: #1e3a8a; margin: 4px 0 2px 0; font-family: serif; text-transform: uppercase;">English Master AI Academy</h3>
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Certificate of Achievement</div>
+            <p style="font-size: 13px; color: #475569; margin: 12px 0 4px 0;">This certifies that</p>
+            <div style="font-size: 22px; font-weight: 800; color: #0f172a; border-bottom: 2px solid #cbd5e1; display: inline-block; padding: 2px 20px;">${escapeHTML(currentUser.name || 'Alex Martin')}</div>
+            <p style="font-size: 12px; color: #475569; margin: 10px 14px 10px 14px;">has demonstrated required language proficiency according to the CEFR framework for:</p>
+            <div style="font-size: 16px; font-weight: 800; color: #1e40af; background: #eff6ff; display: inline-block; padding: 6px 16px; border-radius: 999px; border: 1px solid #bfdbfe;">
+              English Level ${escapeHTML(currentUser.level || 'B1')} - ${escapeHTML(currentUser.level_name || 'Intermediate')}
             </div>
-          `, `<button class="ema-mobile-primary-btn" onclick="Modal.close(); renderApp();">Terminer</button>`);
-          return;
-        }
-      }
-
-      AudioFX.playTap();
-      Modal.close();
-      renderApp();
-    },
-
-    async seedFirebaseData() {
-      if (!window.EMA_Firebase || !window.EMA_Firebase.isInitialized) {
-        alert("Veuillez d'abord configurer votre clé API Firebase.");
-        return;
-      }
-
-      AudioFX.playTap();
-      Modal.open('🚀 Synchronisation Cloud', `
-        <div style="text-align: center; padding: 20px 0;">
-          <div style="font-size: 40px; margin-bottom: 10px; animation: wave-anim 1s infinite alternate;">⏳</div>
-          <h3 style="color: #60a5fa; margin: 0 0 10px 0;">Envoi vers Firestore en cours...</h3>
-          <p style="font-size: 13px; color: var(--ema-text-muted);">Transfert des 120 QCM, 90 mots de vocabulaire, 18 modules d'écoute et 6 niveaux vers la base de données cloud.</p>
-        </div>
-      `);
-
-      try {
-        await window.EMA_Firebase.seedFirestore(window.EMA_DATASET);
-        AudioFX.playSuccess();
-        Modal.open('🎉 Données Envoyées !', `
-          <div style="text-align: center; padding: 10px 0;">
-            <div style="font-size: 40px; margin-bottom: 10px;">☁️✨</div>
-            <h3 style="color: #10b981; margin: 0 0 10px 0;">120 QCM & Contenu sur Firestore !</h3>
-            <p style="font-size: 13px; color: #cbd5e1;">Toutes les collections (grammar, vocabulary, listening, writing, levels) sont désormais disponibles et modifiables en direct depuis la console Firebase.</p>
+            <div style="margin-top: 14px; font-size: 11px; color: #94a3b8;">ID: EMA-${escapeHTML(currentUser.level || 'B1')}-${Math.floor(1000 + Math.random() * 9000)}</div>
           </div>
-        `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Super !</button>`);
-      } catch (err) {
-        Modal.open('❌ Erreur d\'envoi', `
-          <div style="text-align: center; padding: 10px 0;">
-            <div style="font-size: 40px; margin-bottom: 10px;">⚠️</div>
-            <h3 style="color: #ef4444; margin: 0 0 10px 0;">Échec du transfert</h3>
-            <p style="font-size: 13px; color: #cbd5e1;">${escapeHTML(err.message)}</p>
-            <p style="font-size: 11px; color: var(--ema-text-muted);">Assurez-vous d'avoir cliqué sur "Créer une base de données" dans Firestore Database dans la console Firebase.</p>
-          </div>
-        `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Fermer</button>`);
+        `, `
+          <button class="ema-mobile-primary-btn" onclick="window.print()">🖨️ Imprimer / Sauvegarder PDF</button>
+        `);
       }
     },
 
@@ -1283,7 +1602,7 @@
       `;
 
       window.EMA._tempAvatar = selectedAvatar;
-      Modal.open(isOnboarding ? '🎉 Nouveau Profil' : '👤 Mon Profil Cloud', html, footer);
+      Modal.open(isOnboarding ? '🎉 Nouveau Profil' : '👤 Mon Profil Apprenant', html, footer);
     },
 
     selectAvatar(av) {
@@ -1315,7 +1634,7 @@
       activeLevelId = level;
 
       if (isOnboarding && !currentUser.xp) {
-        currentUser.xp = 50; // Welcome XP
+        currentUser.xp = 50;
       }
 
       saveProfile();
@@ -1332,7 +1651,7 @@
       AudioFX.playTap();
       Modal.open('🏆 Classement Cloud', `
         <div style="text-align: center; padding: 20px 0;">
-          <div style="font-size: 32px; animation: wave-anim 1s infinite alternate;">⏳</div>
+          <div style="font-size: 32px;">⏳</div>
           <p style="font-size: 13px; color: var(--ema-text-muted);">Chargement des apprenants depuis Firestore...</p>
         </div>
       `);
@@ -1343,7 +1662,6 @@
       }
 
       if (!learners || learners.length === 0) {
-        // Mock / local demo learners
         learners = [
           { name: currentUser.name || 'Vous', avatar: currentUser.avatar || '👨‍🎓', level: currentUser.level || 'B1', xp: currentUser.xp || 1480 },
           { name: 'Sarah Connor', avatar: '👩‍🎓', level: 'B2', xp: 2150 },
@@ -1355,7 +1673,7 @@
 
       const html = `
         <div style="margin-bottom: 12px; font-size: 12px; color: var(--ema-text-muted);">
-          Top apprenants actifs synchronisés avec Firebase :
+          Top apprenants actifs de la communauté :
         </div>
         <div style="display: flex; flex-direction: column; gap: 8px;">
           ${learners.map((l, i) => `
@@ -1379,6 +1697,42 @@
       `;
 
       Modal.open('🏆 Classement des Apprenants', html, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Fermer</button>`);
+    },
+
+    async seedFirebaseData() {
+      if (!window.EMA_Firebase || !window.EMA_Firebase.isInitialized) {
+        alert("Veuillez d'abord configurer votre clé API Firebase.");
+        return;
+      }
+
+      AudioFX.playTap();
+      Modal.open('🚀 Synchronisation Cloud', `
+        <div style="text-align: center; padding: 20px 0;">
+          <div style="font-size: 40px; margin-bottom: 10px;">⏳</div>
+          <h3 style="color: #60a5fa; margin: 0 0 10px 0;">Envoi vers Firestore en cours...</h3>
+          <p style="font-size: 13px; color: var(--ema-text-muted);">Transfert des 120 QCM, 90 mots de vocabulaire, 18 modules d'écoute et 6 niveaux vers la base cloud.</p>
+        </div>
+      `);
+
+      try {
+        await window.EMA_Firebase.seedFirestore(window.EMA_DATASET);
+        AudioFX.playSuccess();
+        Modal.open('🎉 Données Envoyées !', `
+          <div style="text-align: center; padding: 10px 0;">
+            <div style="font-size: 40px; margin-bottom: 10px;">☁️✨</div>
+            <h3 style="color: #10b981; margin: 0 0 10px 0;">120 QCM & Contenu sur Firestore !</h3>
+            <p style="font-size: 13px; color: #cbd5e1;">Toutes les collections sont synchronisées et modifiables en direct depuis la console Firebase.</p>
+          </div>
+        `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Super !</button>`);
+      } catch (err) {
+        Modal.open('❌ Erreur d\'envoi', `
+          <div style="text-align: center; padding: 10px 0;">
+            <div style="font-size: 40px; margin-bottom: 10px;">⚠️</div>
+            <h3 style="color: #ef4444; margin: 0 0 10px 0;">Échec du transfert</h3>
+            <p style="font-size: 13px; color: #cbd5e1;">${escapeHTML(err.message)}</p>
+          </div>
+        `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Fermer</button>`);
+      }
     }
   };
 

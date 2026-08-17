@@ -207,8 +207,16 @@ final class EnglishMasterAI {
     }
 
     public function render_standalone_app() {
+        if (isset($_GET['ema_certificate']) && $_GET['ema_certificate'] == '1') {
+            include EMA_PLUGIN_DIR . 'templates/certificate-template.php';
+            exit;
+        }
+
         if (get_query_var('ema_app')) {
+            $this->register_assets();
             wp_enqueue_style('ema-frontend-css');
+            wp_enqueue_script('ema-lessons-data');
+            wp_enqueue_script('ema-firebase-sync');
             wp_enqueue_script('ema-frontend-js');
             include EMA_PLUGIN_DIR . 'templates/standalone-app.php';
             exit;

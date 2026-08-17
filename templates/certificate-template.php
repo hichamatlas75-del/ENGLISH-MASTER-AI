@@ -99,13 +99,54 @@ $signature = get_option('ema_certificate_signature_name', 'Dr. Sarah Jenkins - A
             font-size: 28px;
             color: #1e3a8a;
         }
+        .cert-actions-bar {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+        .cert-btn {
+            background: #1e3a8a;
+            color: #ffffff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: background 0.2s, transform 0.1s;
+        }
+        .cert-btn:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+        .cert-btn-gold {
+            background: #d97706;
+            color: #ffffff;
+        }
+        .cert-btn-gold:hover {
+            background: #b45309;
+        }
         @media print {
             body { background: none; padding: 0; }
-            .certificate-sheet { box-shadow: none; border-width: 8px; width: 100%; height: 100%; }
+            .cert-actions-bar { display: none !important; }
+            .certificate-sheet { box-shadow: none; border-width: 8px; width: 100%; height: 100%; margin: 0; }
         }
     </style>
 </head>
 <body>
+    <div class="cert-actions-bar">
+        <a href="javascript:window.history.back()" class="cert-btn">‹ Retour à l'App</a>
+        <button onclick="window.print()" class="cert-btn cert-btn-gold">🖨️ Imprimer / Enregistrer PDF</button>
+    </div>
+
     <div class="certificate-sheet">
         <div style="font-size: 50px; margin-bottom: 10px;">🏅</div>
         <h1 class="cert-header"><?php echo esc_html($institution); ?></h1>
@@ -115,7 +156,7 @@ $signature = get_option('ema_certificate_signature_name', 'Dr. Sarah Jenkins - A
         <div class="cert-name"><?php echo esc_html($user_name); ?></div>
         
         <p class="cert-body">
-            has demonstrated required oral fluency, grammar precision, listening comprehension, and lexical mastery according to the Common European Framework of Reference for Languages (CEFR) for:
+            has successfully demonstrated required oral fluency, grammar precision, listening comprehension, and lexical mastery according to the Common European Framework of Reference for Languages (CEFR) for:
         </p>
 
         <div class="cert-level-badge">

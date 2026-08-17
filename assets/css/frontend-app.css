@@ -1132,3 +1132,264 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   outline: none;
 }
 
+/* Wave visualizer active state */
+.ema-wave-visualizer.recording .ema-wave-bar {
+  background: #ef4444;
+  animation: wave-anim-active 0.4s infinite ease-in-out alternate;
+}
+.ema-wave-visualizer.recording .ema-wave-bar:nth-child(2) { animation-delay: 0.1s; height: 32px; background: #f59e0b; }
+.ema-wave-visualizer.recording .ema-wave-bar:nth-child(3) { animation-delay: 0.2s; height: 42px; background: #10b981; }
+.ema-wave-visualizer.recording .ema-wave-bar:nth-child(4) { animation-delay: 0.05s; height: 28px; background: #3b82f6; }
+.ema-wave-visualizer.recording .ema-wave-bar:nth-child(5) { animation-delay: 0.15s; height: 38px; background: #8b5cf6; }
+.ema-wave-visualizer.recording .ema-wave-bar:nth-child(6) { animation-delay: 0.25s; height: 24px; background: #ec4899; }
+
+@keyframes wave-anim-active {
+  0% { transform: scaleY(0.3); }
+  100% { transform: scaleY(1.8); }
+}
+
+/* ==========================================================================
+   AI CONVERSATION COACH & CHAT STYLES
+   ========================================================================== */
+.ema-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 480px;
+  max-height: 65vh;
+}
+
+.ema-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ema-chat-bubble {
+  max-width: 84%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  position: relative;
+  word-wrap: break-word;
+}
+
+.ema-chat-bubble.ai {
+  align-self: flex-start;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  border-bottom-left-radius: 4px;
+}
+
+.ema-chat-bubble.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+}
+
+.ema-chat-bubble .speaker-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #93c5fd;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ema-chat-listen-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.ema-chat-correction {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(245, 158, 11, 0.15);
+  border-left: 3px solid #f59e0b;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #fde68a;
+}
+
+.ema-chat-tip {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(16, 185, 129, 0.15);
+  border-left: 3px solid #10b981;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #a7f3d0;
+}
+
+.ema-chat-input-bar {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  align-items: center;
+}
+
+.ema-chat-input {
+  flex: 1;
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  padding: 10px 16px;
+  color: #fff;
+  font-size: 14px;
+  font-family: var(--ema-font);
+}
+
+.ema-chat-input:focus {
+  border-color: var(--ema-primary);
+  outline: none;
+}
+
+.ema-chat-mic-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ema-chat-mic-btn.recording {
+  background: #ef4444;
+  border-color: #ef4444;
+  animation: pulse-mic 1s infinite;
+}
+
+.ema-chat-send-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--ema-primary);
+  border: none;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ema-chat-send-btn:hover {
+  background: #1d4ed8;
+  transform: scale(1.05);
+}
+
+/* Scenario Selector Cards */
+.ema-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.ema-scenario-card {
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ema-radius-md);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ema-scenario-card:hover, .ema-scenario-card.active {
+  border-color: var(--ema-primary);
+  background: rgba(37, 99, 235, 0.15);
+  transform: translateY(-2px);
+}
+
+.ema-scenario-card .icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.ema-scenario-card .title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 2px;
+}
+
+.ema-scenario-card .desc {
+  font-size: 11px;
+  color: var(--ema-text-muted);
+}
+
+/* ==========================================================================
+   UNIT LESSONS DRAWER / MODAL
+   ========================================================================== */
+.ema-unit-lesson-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ema-radius-md);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ema-unit-lesson-row:hover {
+  border-color: var(--ema-primary);
+  background: #182347;
+  transform: translateX(4px);
+}
+
+.ema-lesson-type-badge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+
+.ema-lesson-type-grammar { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.ema-lesson-type-vocabulary { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.ema-lesson-type-pronunciation { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+.ema-lesson-type-speaking { background: rgba(37, 99, 235, 0.2); color: #60a5fa; }
+.ema-lesson-type-writing { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
+
+/* Writing count info */
+.ema-writing-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ema-text-muted);
+  margin-bottom: 8px;
+}
+
+

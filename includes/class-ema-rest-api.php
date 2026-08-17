@@ -44,22 +44,21 @@ class EMA_Rest_API {
         register_rest_route($this->namespace, '/ai/chat', array(
             'methods'             => 'POST',
             'callback'            => array($this, 'handle_ai_chat'),
-            'permission_callback' => function($request) {
-                $nonce = $request->get_header('X-WP-Nonce');
-                if ($nonce && wp_verify_nonce($nonce, 'wp_rest')) return true;
-                return is_user_logged_in();
-            },
+            'permission_callback' => '__return_true',
         ));
 
         // AI Writing Correction
         register_rest_route($this->namespace, '/ai/correct-writing', array(
             'methods'             => 'POST',
             'callback'            => array($this, 'correct_writing'),
-            'permission_callback' => function($request) {
-                $nonce = $request->get_header('X-WP-Nonce');
-                if ($nonce && wp_verify_nonce($nonce, 'wp_rest')) return true;
-                return is_user_logged_in();
-            },
+            'permission_callback' => '__return_true',
+        ));
+
+        // SRS Rate Alias for compatibility
+        register_rest_route($this->namespace, '/srs/rate', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'update_srs_review'),
+            'permission_callback' => '__return_true',
         ));
     }
 
@@ -137,6 +136,7 @@ class EMA_Rest_API {
         $score     = intval($params['score'] ?? 100);
 
         $user_id = get_current_user_id();
+        $today = current_time('Y-m-d');
 
         if ($user_id > 0) {
             global $wpdb;
@@ -151,11 +151,35 @@ class EMA_Rest_API {
             ));
 
             $table_stats = $wpdb->prefix . 'ema_user_stats';
-            $exists = $wpdb->get_var($wpdb->prepare("SELECT user_id FROM $table_stats WHERE user_id = %d", $user_id));
-            if (!$exists) {
-                $wpdb->insert($table_stats, array('user_id' => $user_id, 'total_xp' => $xp, 'current_level' => 'A1', 'streak_days' => 1, 'daily_goal_minutes' => 30));
+            $stats = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_stats WHERE user_id = %d", $user_id), ARRAY_A);
+            
+            if (!$stats) {
+                $wpdb->insert($table_stats, array(
+                    'user_id'            => $user_id,
+                    'total_xp'           => $xp,
+                    'current_level'      => $level_id,
+                    'streak_days'        => 1,
+                    'last_activity_date' => $today,
+                    'daily_goal_minutes' => 30
+                ));
             } else {
-                $wpdb->query($wpdb->prepare("UPDATE $table_stats SET total_xp = total_xp + %d WHERE user_id = %d", $xp, $user_id));
+                $last_date = $stats['last_activity_date'] ?? null;
+                $streak = intval($stats['streak_days'] ?? 1);
+                
+                if ($last_date) {
+                    $diff = (strtotime($today) - strtotime($last_date)) / 86400;
+                    if ($diff == 1) {
+                        $streak++;
+                    } elseif ($diff > 1) {
+                        $streak = 1;
+                    }
+                }
+                
+                $wpdb->update($table_stats, array(
+                    'total_xp'           => intval($stats['total_xp']) + $xp,
+                    'streak_days'        => $streak,
+                    'last_activity_date' => $today,
+                ), array('user_id' => $user_id));
             }
         }
 
@@ -168,8 +192,8 @@ class EMA_Rest_API {
 
     public function update_srs_review($request) {
         $params = $request->get_json_params();
-        $word_id = sanitize_text_field($params['word_id'] ?? '');
-        $rating  = intval($params['rating'] ?? 4); // 0 (blackout) to 5 (perfect)
+        $word_id = sanitize_text_field($params['word_id'] ?? $params['item_id'] ?? 'word_1');
+        $rating  = intval($params['rating'] ?? $params['quality'] ?? 4); // 0 (blackout) to 5 (perfect)
 
         $user_id = get_current_user_id();
         
