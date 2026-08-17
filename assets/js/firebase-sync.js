@@ -180,18 +180,63 @@
      */
     async saveUserProfile(user) {
       if (!this.isInitialized || !this.db) return false;
-      const uid = (this.auth && this.auth.currentUser) ? this.auth.currentUser.uid : (user.user_id || 'guest_device');
+      const uid = (this.auth && this.auth.currentUser) ? this.auth.currentUser.uid : (user.user_id || 'guest_' + (user.name || 'user').toLowerCase().replace(/\s+/g, '_'));
       
       try {
         await this.db.collection('users').doc(String(uid)).set({
-          ...user,
+          name: user.name || 'Anonymous',
+          avatar: user.avatar || '👨‍🎓',
+          level: user.level || 'B1',
+          level_name: user.level_name || 'Intermediate',
+          progress: user.progress || 0,
+          xp: user.xp || 0,
+          streak: user.streak || 1,
+          daily_goal: user.daily_goal || 30,
+          daily_spent: user.daily_spent || 0,
+          user_id: String(uid),
           updated_at: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+        console.log('☁️ [EMA Firebase] Profil synchronisé sur Firestore (ID:', uid, ')');
         return true;
       } catch (err) {
         console.warn('[EMA Firebase] Erreur sauvegarde profil cloud:', err);
         return false;
       }
+    },
+
+    /**
+     * Create brand new profile in Firestore
+     */
+    async createUserProfile(profileData) {
+      let uid = 'user_' + Math.random().toString(36).substring(2, 9);
+      if (this.auth && this.auth.currentUser) {
+        uid = this.auth.currentUser.uid;
+      }
+
+      const newProfile = {
+        name: profileData.name || 'New Learner',
+        avatar: profileData.avatar || '👨‍🎓',
+        level: profileData.level || 'A1',
+        level_name: profileData.level_name || 'Beginner',
+        xp: 50, // Welcome bonus XP!
+        streak: 1,
+        daily_goal: profileData.daily_goal || 30,
+        daily_spent: 0,
+        progress: 0,
+        user_id: uid,
+        created_at: firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date()
+      };
+
+      if (this.isInitialized && this.db) {
+        try {
+          await this.db.collection('users').doc(String(uid)).set(newProfile, { merge: true });
+          console.log('🎉 [EMA Firebase] Nouveau profil cloud créé:', newProfile.name, 'ID:', uid);
+        } catch (e) {
+          console.warn('[EMA Firebase] Erreur création profil Firestore:', e);
+        }
+      }
+
+      return newProfile;
     },
 
     /**
@@ -210,6 +255,29 @@
         console.warn('[EMA Firebase] Erreur chargement profil cloud:', err);
       }
       return fallbackUser;
+    },
+
+    /**
+     * Get top learners leaderboard from Firestore
+     */
+    async getLeaderboard(limitCount = 10) {
+      if (!this.isInitialized || !this.db) return [];
+
+      try {
+        const snap = await this.db.collection('users')
+          .orderBy('xp', 'desc')
+          .limit(limitCount)
+          .get();
+
+        const leaderboard = [];
+        snap.forEach(doc => {
+          leaderboard.push(doc.data());
+        });
+        return leaderboard;
+      } catch (err) {
+        console.warn('[EMA Firebase] Erreur chargement leaderboard:', err);
+        return [];
+      }
     }
   };
 

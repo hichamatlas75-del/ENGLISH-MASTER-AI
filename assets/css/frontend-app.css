@@ -1037,3 +1037,98 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .ema-level-chip[data-level="C2"] { border-color: rgba(239, 68, 68, 0.3); }
 .ema-level-chip[data-level="C2"].active { border-color: #ef4444; background: rgba(239, 68, 68, 0.15); box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3); }
 .ema-level-chip[data-level="C2"].active .chip-level { color: #f87171; }
+
+/* Profile Avatar & Onboarding Styles */
+.ema-profile-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 4px 12px 4px 6px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ema-profile-chip-btn:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.ema-profile-chip-btn .avatar {
+  font-size: 18px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ema-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.ema-avatar-option {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: #111933;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.ema-avatar-option:hover, .ema-avatar-option.selected {
+  border-color: var(--ema-primary);
+  background: rgba(37, 99, 235, 0.2);
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+}
+
+.ema-form-group {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.ema-form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ema-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.ema-form-input, .ema-form-select {
+  width: 100%;
+  box-sizing: border-box;
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #ffffff;
+  font-size: 14px;
+  font-family: var(--ema-font);
+  transition: border-color 0.2s;
+}
+
+.ema-form-input:focus, .ema-form-select:focus {
+  border-color: var(--ema-primary);
+  outline: none;
+}
+

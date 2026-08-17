@@ -217,6 +217,13 @@
         currentUser = { ...currentUser, ...JSON.parse(saved) };
         activeLevelId = currentUser.level || 'B1';
       } catch (e) {}
+    } else {
+      // First visit: Open Profile Creation Onboarding!
+      setTimeout(() => {
+        if (window.EMA && window.EMA.openProfileModal) {
+          window.EMA.openProfileModal(true);
+        }
+      }, 400);
     }
 
     // Try initializing Firebase Cloud Sync
@@ -251,11 +258,13 @@
       <div class="ema-app-viewport">
         <!-- iOS/Android Mock Status Bar -->
         <div class="ema-status-bar">
-          <span>9:41</span>
+          <button class="ema-profile-chip-btn" onclick="window.EMA.openProfileModal(false)" title="Gérer mon profil Cloud">
+            <span class="avatar">${escapeHTML(currentUser.avatar || '👨‍🎓')}</span>
+            <span>${escapeHTML(currentUser.name || 'Profil')}</span>
+          </button>
           <div class="ema-status-icons">
-            <span>📶</span>
-            <span>📡</span>
-            <span>🔋</span>
+            <span style="font-size: 11px; color: #60a5fa; font-weight: 800; background: rgba(37,99,235,0.2); padding: 2px 6px; border-radius: 6px;">${escapeHTML(currentUser.level)}</span>
+            <span>⚡ ${currentUser.xp} XP</span>
           </div>
         </div>
 
@@ -668,12 +677,15 @@
         <p style="font-size: 12px; color: var(--ema-text-muted); margin: 0 0 12px 0;">
           ${(window.EMA_Firebase && window.EMA_Firebase.isInitialized) ? 'Données & progression synchronisées en temps réel sur Firestore.' : 'Connectez votre projet Firebase pour synchroniser vos 120 QCM et votre progression dans le cloud.'}
         </p>
-        <div style="display: flex; gap: 8px;">
-          <button class="ema-mobile-primary-btn" style="flex: 1; padding: 10px; margin-bottom: 0; font-size: 13px;" onclick="window.EMA.openFirebaseModal()">
-            ⚙️ Paramètres Firebase
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="ema-mobile-primary-btn" style="flex: 1; min-width: 130px; padding: 10px; margin-bottom: 0; font-size: 13px;" onclick="window.EMA.openProfileModal(false)">
+            👤 Mon Profil Cloud
+          </button>
+          <button class="ema-mobile-primary-btn" style="flex: 1; min-width: 130px; padding: 10px; margin-bottom: 0; font-size: 13px; background: #3b82f6;" onclick="window.EMA.openLeaderboardModal()">
+            🏆 Classement
           </button>
           ${(window.EMA_Firebase && window.EMA_Firebase.isInitialized) ? `
-            <button class="ema-mobile-primary-btn" style="flex: 1; padding: 10px; margin-bottom: 0; font-size: 13px; background: #10b981;" onclick="window.EMA.seedFirebaseData()">
+            <button class="ema-mobile-primary-btn" style="width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 0; font-size: 13px; background: #10b981;" onclick="window.EMA.seedFirebaseData()">
               🚀 Uploader Dataset (120 QCM)
             </button>
           ` : ''}
@@ -1211,6 +1223,162 @@
           </div>
         `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Fermer</button>`);
       }
+    },
+
+    openProfileModal(isOnboarding = false) {
+      AudioFX.playTap();
+      const avatars = ['👨‍🎓', '👩‍🎓', '🚀', '🌟', '🦉', '🦊', '⚡', '🎯', '💡', '🦁'];
+      let selectedAvatar = currentUser.avatar || '👨‍🎓';
+      const levelNames = { A1: 'A1 - Débutant', A2: 'A2 - Élémentaire', B1: 'B1 - Intermédiaire', B2: 'B2 - Avancé', C1: 'C1 - Autonome', C2: 'C2 - Bilingue' };
+
+      const html = `
+        ${isOnboarding ? `
+          <div style="text-align:center; margin-bottom: 14px;">
+            <div style="font-size: 32px;">👋✨</div>
+            <h3 style="margin: 4px 0 2px 0; color: #fff;">Bienvenue sur English Master AI !</h3>
+            <p style="font-size: 12px; color: var(--ema-text-muted); margin: 0;">Créez votre profil pour sauvegarder votre progression sur Firebase Cloud.</p>
+          </div>
+        ` : ''}
+
+        <div class="ema-form-group">
+          <label>Votre Nom ou Pseudo</label>
+          <input type="text" id="ema-prof-name" class="ema-form-input" value="${escapeHTML(currentUser.name || '')}" placeholder="Ex: Alex Martin" />
+        </div>
+
+        <div class="ema-form-group">
+          <label>Choisissez votre Avatar</label>
+          <div class="ema-avatar-grid" id="ema-avatar-selector">
+            ${avatars.map(av => `
+              <div class="ema-avatar-option ${selectedAvatar === av ? 'selected' : ''}" onclick="window.EMA.selectAvatar('${av}')">
+                ${av}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="ema-form-group">
+          <label>Niveau de Départ</label>
+          <select id="ema-prof-level" class="ema-form-select">
+            ${['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => `
+              <option value="${lvl}" ${(currentUser.level === lvl) ? 'selected' : ''}>${levelNames[lvl]}</option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="ema-form-group">
+          <label>Objectif Quotidien</label>
+          <select id="ema-prof-goal" class="ema-form-select">
+            <option value="15" ${currentUser.daily_goal == 15 ? 'selected' : ''}>⚡ 15 min / jour (Tranquille)</option>
+            <option value="30" ${currentUser.daily_goal == 30 ? 'selected' : ''}>🔥 30 min / jour (Recommandé)</option>
+            <option value="45" ${currentUser.daily_goal == 45 ? 'selected' : ''}>💪 45 min / jour (Intensif)</option>
+            <option value="60" ${currentUser.daily_goal == 60 ? 'selected' : ''}>🚀 60 min / jour (Immersion)</option>
+          </select>
+        </div>
+      `;
+
+      const footer = `
+        <button class="ema-mobile-primary-btn" onclick="window.EMA.saveProfileForm(${isOnboarding})">
+          ${isOnboarding ? '🚀 Créer mon Profil & Commencer' : '💾 Enregistrer mon Profil'}
+        </button>
+      `;
+
+      window.EMA._tempAvatar = selectedAvatar;
+      Modal.open(isOnboarding ? '🎉 Nouveau Profil' : '👤 Mon Profil Cloud', html, footer);
+    },
+
+    selectAvatar(av) {
+      AudioFX.playTap();
+      window.EMA._tempAvatar = av;
+      const opts = document.querySelectorAll('.ema-avatar-option');
+      opts.forEach(el => {
+        el.classList.toggle('selected', el.innerText.trim() === av);
+      });
+    },
+
+    async saveProfileForm(isOnboarding = false) {
+      const nameInput = document.getElementById('ema-prof-name');
+      const levelSelect = document.getElementById('ema-prof-level');
+      const goalSelect = document.getElementById('ema-prof-goal');
+      
+      const name = (nameInput && nameInput.value.trim()) || 'Learner';
+      const level = (levelSelect && levelSelect.value) || 'B1';
+      const goal = parseInt(goalSelect ? goalSelect.value : 30, 10);
+      const avatar = window.EMA._tempAvatar || currentUser.avatar || '👨‍🎓';
+
+      const levelNames = { A1: 'Beginner', A2: 'Elementary', B1: 'Intermediate', B2: 'Upper-Int', C1: 'Advanced', C2: 'Mastery' };
+
+      currentUser.name = name;
+      currentUser.avatar = avatar;
+      currentUser.level = level;
+      currentUser.level_name = levelNames[level] || 'Intermediate';
+      currentUser.daily_goal = goal;
+      activeLevelId = level;
+
+      if (isOnboarding && !currentUser.xp) {
+        currentUser.xp = 50; // Welcome XP
+      }
+
+      saveProfile();
+      AudioFX.playSuccess();
+      Modal.close();
+      renderApp();
+
+      if (window.EMA_Firebase && window.EMA_Firebase.isInitialized) {
+        await window.EMA_Firebase.saveUserProfile(currentUser);
+      }
+    },
+
+    async openLeaderboardModal() {
+      AudioFX.playTap();
+      Modal.open('🏆 Classement Cloud', `
+        <div style="text-align: center; padding: 20px 0;">
+          <div style="font-size: 32px; animation: wave-anim 1s infinite alternate;">⏳</div>
+          <p style="font-size: 13px; color: var(--ema-text-muted);">Chargement des apprenants depuis Firestore...</p>
+        </div>
+      `);
+
+      let learners = [];
+      if (window.EMA_Firebase) {
+        learners = await window.EMA_Firebase.getLeaderboard(10);
+      }
+
+      if (!learners || learners.length === 0) {
+        // Mock / local demo learners
+        learners = [
+          { name: currentUser.name || 'Vous', avatar: currentUser.avatar || '👨‍🎓', level: currentUser.level || 'B1', xp: currentUser.xp || 1480 },
+          { name: 'Sarah Connor', avatar: '👩‍🎓', level: 'B2', xp: 2150 },
+          { name: 'David Miller', avatar: '🚀', level: 'C1', xp: 1890 },
+          { name: 'Emma Watson', avatar: '🌟', level: 'B1', xp: 1420 },
+          { name: 'Lucas Scott', avatar: '🦊', level: 'A2', xp: 870 }
+        ].sort((a, b) => b.xp - a.xp);
+      }
+
+      const html = `
+        <div style="margin-bottom: 12px; font-size: 12px; color: var(--ema-text-muted);">
+          Top apprenants actifs synchronisés avec Firebase :
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          ${learners.map((l, i) => `
+            <div style="display: flex; align-items: center; justify-content: space-between; background: #111933; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 14px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-weight: 800; font-size: 14px; color: ${i === 0 ? '#fbbf24' : (i === 1 ? '#94a3b8' : (i === 2 ? '#b45309' : '#64748b'))}; width: 16px;">
+                  #${i + 1}
+                </span>
+                <span style="font-size: 22px;">${l.avatar || '👨‍🎓'}</span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 700; color: #fff;">${escapeHTML(l.name)}</div>
+                  <span style="font-size: 10px; color: #60a5fa; font-weight: 800; background: rgba(37,99,235,0.2); padding: 1px 5px; border-radius: 4px;">${escapeHTML(l.level || 'B1')}</span>
+                </div>
+              </div>
+              <div style="font-size: 14px; font-weight: 800; color: #818cf8;">
+                ⚡ ${(l.xp || 0).toLocaleString()} XP
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      Modal.open('🏆 Classement des Apprenants', html, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Fermer</button>`);
     }
   };
 
