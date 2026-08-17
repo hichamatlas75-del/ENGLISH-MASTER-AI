@@ -1,6 +1,6 @@
 /**
- * English Master AI - Firebase Firestore Sync & Cloud Engine
- * Handles dynamic content fetching, real-time user progress sync, and Firestore dataset seeding
+ * English Master AI - Firebase Cloud Engine (Realtime Database & Firestore Dual Sync)
+ * Automatically syncs with Realtime Database (europe-west1) and Firestore.
  */
 
 (function () {
@@ -18,24 +18,25 @@
   };
 
   window.EMA_Firebase = {
-    db: null,
-    auth: null,
+    db: null,       // Firestore instance
+    rtdb: null,     // Realtime Database instance
+    auth: null,     // Auth instance
     isInitialized: false,
     config: null,
 
     /**
-     * Initialize Firebase with provided config or stored settings
+     * Initialize Firebase with Realtime Database & Firestore support
      */
     async init(customConfig = null) {
       this.config = customConfig || (window.EMA_CONFIG && window.EMA_CONFIG.firebase) || defaultFirebaseConfig;
 
       if (!this.config || !this.config.apiKey) {
-        console.info('[EMA Firebase] Clé API non renseignée. Mode local/offline actif.');
+        console.info('[EMA Firebase] Clé API non configurée. Mode local actif.');
         return false;
       }
 
       try {
-        if (!window.firebase) {
+        if (!window.firebase || !window.firebase.database) {
           await this.loadFirebaseSDKs();
         }
 
@@ -43,12 +44,32 @@
           firebase.initializeApp(this.config);
         }
 
-        this.db = firebase.firestore();
-        this.auth = firebase.auth();
-        this.isInitialized = true;
-        console.log('🔥 [EMA Firebase] Connecté avec succès à Firestore (Projet: ' + this.config.projectId + ')');
+        // Initialize Realtime Database (europe-west1 default)
+        try {
+          this.rtdb = firebase.database();
+          console.log('⚡ [EMA Firebase] Realtime Database initialisée:', this.config.databaseURL);
+        } catch (rtdbErr) {
+          console.warn('[EMA Firebase] RTDB warning:', rtdbErr);
+        }
 
-        // Optional Anonymous Auth for secure per-device cloud sync
+        // Initialize Firestore
+        try {
+          this.db = firebase.firestore();
+        } catch (fsErr) {
+          console.warn('[EMA Firebase] Firestore warning:', fsErr);
+        }
+
+        // Initialize Auth
+        try {
+          this.auth = firebase.auth();
+        } catch (authErr) {
+          console.warn('[EMA Firebase] Auth warning:', authErr);
+        }
+
+        this.isInitialized = true;
+        console.log('🔥 [EMA Firebase] Connecté avec succès à Firebase (Projet: ' + this.config.projectId + ')');
+
+        // Anonymous Auth for per-device sync
         if (this.auth && !this.auth.currentUser) {
           try {
             await this.auth.signInAnonymously();
@@ -66,218 +87,238 @@
     },
 
     /**
-     * Dynamically load Firebase SDK via CDN (modular & lightweight)
+     * Dynamically load Firebase SDKs via CDN (App, Database, Firestore, Auth)
      */
     loadFirebaseSDKs() {
       return new Promise((resolve, reject) => {
-        if (window.firebase) return resolve();
+        if (window.firebase && window.firebase.database && window.firebase.firestore) return resolve();
 
-        const appScript = document.createElement('script');
-        appScript.src = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js';
-        appScript.onload = () => {
-          const firestoreScript = document.createElement('script');
-          firestoreScript.src = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js';
-          
-          const authScript = document.createElement('script');
-          authScript.src = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js';
-
-          let loaded = 0;
-          const checkReady = () => {
-            loaded++;
-            if (loaded === 2) resolve();
-          };
-
-          firestoreScript.onload = checkReady;
-          authScript.onload = checkReady;
-          firestoreScript.onerror = reject;
-          authScript.onerror = reject;
-
-          document.head.appendChild(firestoreScript);
-          document.head.appendChild(authScript);
+        const loadScript = (src) => {
+          return new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = res;
+            s.onerror = rej;
+            document.head.appendChild(s);
+          });
         };
-        appScript.onerror = reject;
-        document.head.appendChild(appScript);
+
+        const base = 'https://www.gstatic.com/firebasejs/10.12.0/';
+        loadScript(base + 'firebase-app-compat.js')
+          .then(() => Promise.all([
+            loadScript(base + 'firebase-database-compat.js'),
+            loadScript(base + 'firebase-firestore-compat.js'),
+            loadScript(base + 'firebase-auth-compat.js')
+          ]))
+          .then(resolve)
+          .catch(reject);
       });
     },
 
     /**
-     * Fetch dynamic curriculum from Firestore with fallback to local dataset
+     * Fetch dynamic curriculum from Realtime Database or Firestore with local fallback
      */
     async fetchCurriculum() {
-      if (!this.isInitialized || !this.db) {
-        return window.EMA_DATASET || null;
-      }
+      if (!this.isInitialized) return window.EMA_DATASET || null;
 
-      try {
-        const docRef = this.db.collection('curriculum').doc('master_dataset');
-        const docSnap = await docRef.get();
-
-        if (docSnap.exists) {
-          console.log('✅ [EMA Firebase] Dataset dynamique chargé depuis Firestore');
-          const cloudData = docSnap.data();
-          // Merge with window.EMA_DATASET for fallback safety
-          window.EMA_DATASET = { ...window.EMA_DATASET, ...cloudData };
-          return window.EMA_DATASET;
-        } else {
-          console.log('ℹ️ [EMA Firebase] Aucune collection distante trouvée, utilisation du dataset local.');
-          return window.EMA_DATASET;
+      // 1. Try Realtime Database
+      if (this.rtdb) {
+        try {
+          const snapshot = await this.rtdb.ref('curriculum/master_dataset').once('value');
+          const val = snapshot.val();
+          if (val && val.levels) {
+            console.log('✅ [EMA Firebase] Dataset chargé depuis Realtime Database');
+            window.EMA_DATASET = { ...window.EMA_DATASET, ...val };
+            return window.EMA_DATASET;
+          }
+        } catch (e) {
+          console.warn('[EMA Firebase] RTDB fetch fallback:', e.message);
         }
-      } catch (e) {
-        console.warn('⚠️ [EMA Firebase] Erreur fetch Firestore, fallback local:', e);
-        return window.EMA_DATASET;
       }
+
+      // 2. Try Firestore
+      if (this.db) {
+        try {
+          const docRef = this.db.collection('curriculum').doc('master_dataset');
+          const docSnap = await docRef.get();
+          if (docSnap.exists) {
+            console.log('✅ [EMA Firebase] Dataset chargé depuis Firestore');
+            window.EMA_DATASET = { ...window.EMA_DATASET, ...docSnap.data() };
+            return window.EMA_DATASET;
+          }
+        } catch (e) {
+          console.warn('[EMA Firebase] Firestore fetch fallback:', e.message);
+        }
+      }
+
+      return window.EMA_DATASET || null;
     },
 
     /**
-     * Seed all current 120 QCM, 90 words, 18 audios into Firestore with 1 click
+     * Seed all curriculum dataset into both Realtime Database and Firestore
      */
     async seedFirestore(dataset = window.EMA_DATASET) {
-      if (!this.isInitialized || !this.db) {
-        throw new Error("Firebase non initialisé. Veuillez renseigner votre apiKey.");
+      if (!this.isInitialized) {
+        throw new Error("Firebase non initialisé. Vérifiez votre connexion.");
       }
 
       if (!dataset) {
-        throw new Error("Aucun dataset trouvé à uploader.");
+        throw new Error("Aucun dataset trouvé à envoyer.");
       }
 
-      console.log('🚀 [EMA Firebase] Début de l\'envoi des données vers Firestore...');
-      
-      // 1. Upload master dataset doc
-      await this.db.collection('curriculum').doc('master_dataset').set(dataset, { merge: true });
+      console.log('🚀 [EMA Firebase] Envoi des données vers Firebase...');
+      let rtdbSuccess = false;
+      let firestoreSuccess = false;
 
-      // 2. Upload grammar modules to dedicated collection for granular queries
-      const batch = this.db.batch();
-      if (dataset.grammar_modules) {
-        dataset.grammar_modules.forEach(mod => {
-          const ref = this.db.collection('grammar_modules').doc(mod.id);
-          batch.set(ref, mod, { merge: true });
-        });
+      // 1. Write to Realtime Database
+      if (this.rtdb) {
+        try {
+          await this.rtdb.ref('curriculum/master_dataset').set(dataset);
+          if (dataset.grammar_modules) {
+            await this.rtdb.ref('grammar_modules').set(dataset.grammar_modules);
+          }
+          if (dataset.vocabulary_items) {
+            await this.rtdb.ref('vocabulary_items').set(dataset.vocabulary_items);
+          }
+          if (dataset.levels) {
+            await this.rtdb.ref('levels').set(dataset.levels);
+          }
+          rtdbSuccess = true;
+          console.log('✅ [EMA Firebase] Données enregistrées dans Realtime Database !');
+        } catch (rtdbErr) {
+          console.warn('[EMA Firebase] Erreur écriture RTDB:', rtdbErr.message);
+        }
       }
 
-      // 3. Upload vocabulary items
-      if (dataset.vocabulary_items) {
-        dataset.vocabulary_items.forEach(vocab => {
-          const ref = this.db.collection('vocabulary_items').doc(vocab.id);
-          batch.set(ref, vocab, { merge: true });
-        });
+      // 2. Write to Cloud Firestore
+      if (this.db) {
+        try {
+          await this.db.collection('curriculum').doc('master_dataset').set(dataset, { merge: true });
+          firestoreSuccess = true;
+          console.log('✅ [EMA Firebase] Données enregistrées dans Firestore !');
+        } catch (fsErr) {
+          console.warn('[EMA Firebase] Erreur écriture Firestore:', fsErr.message);
+        }
       }
 
-      // 4. Upload listening exercises
-      if (dataset.listening_exercises) {
-        dataset.listening_exercises.forEach(listen => {
-          const ref = this.db.collection('listening_exercises').doc(listen.id);
-          batch.set(ref, listen, { merge: true });
-        });
+      if (!rtdbSuccess && !firestoreSuccess) {
+        throw new Error("Impossible d'écrire sur Firebase. Vérifiez les règles de sécurité dans la console.");
       }
 
-      await batch.commit();
-      console.log('🎉 [EMA Firebase] Données synchronisées avec succès sur Firestore !');
       return true;
     },
 
     /**
-     * Cloud sync user profile & progress
+     * Cloud sync user profile & progress across Realtime Database & Firestore
      */
     async saveUserProfile(user) {
-      if (!this.isInitialized || !this.db) return false;
-      const uid = (this.auth && this.auth.currentUser) ? this.auth.currentUser.uid : (user.user_id || 'guest_' + (user.name || 'user').toLowerCase().replace(/\s+/g, '_'));
-      
-      try {
-        await this.db.collection('users').doc(String(uid)).set({
-          name: user.name || 'Anonymous',
-          avatar: user.avatar || '👨‍🎓',
-          level: user.level || 'B1',
-          level_name: user.level_name || 'Intermediate',
-          progress: user.progress || 0,
-          xp: user.xp || 0,
-          streak: user.streak || 1,
-          daily_goal: user.daily_goal || 30,
-          daily_spent: user.daily_spent || 0,
-          user_id: String(uid),
-          updated_at: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        console.log('☁️ [EMA Firebase] Profil synchronisé sur Firestore (ID:', uid, ')');
-        return true;
-      } catch (err) {
-        console.warn('[EMA Firebase] Erreur sauvegarde profil cloud:', err);
-        return false;
-      }
-    },
+      if (!this.isInitialized) return false;
+      const uid = (this.auth && this.auth.currentUser) ? this.auth.currentUser.uid : (user.user_id || 'user_' + (user.name || 'guest').toLowerCase().replace(/[^a-z0-9]/g, '_'));
 
-    /**
-     * Create brand new profile in Firestore
-     */
-    async createUserProfile(profileData) {
-      let uid = 'user_' + Math.random().toString(36).substring(2, 9);
-      if (this.auth && this.auth.currentUser) {
-        uid = this.auth.currentUser.uid;
-      }
-
-      const newProfile = {
-        name: profileData.name || 'New Learner',
-        avatar: profileData.avatar || '👨‍🎓',
-        level: profileData.level || 'A1',
-        level_name: profileData.level_name || 'Beginner',
-        xp: 50, // Welcome bonus XP!
-        streak: 1,
-        daily_goal: profileData.daily_goal || 30,
-        daily_spent: 0,
-        progress: 0,
-        user_id: uid,
-        created_at: firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date()
+      const profilePayload = {
+        name: user.name || 'Alex Martin',
+        avatar: user.avatar || '👨‍🎓',
+        level: user.level || 'B1',
+        level_name: user.level_name || 'Intermediate',
+        progress: user.progress || 64,
+        xp: user.xp || 1480,
+        streak: user.streak || 1,
+        daily_goal: user.daily_goal || 30,
+        daily_spent: user.daily_spent || 20,
+        user_id: String(uid),
+        updated_at: new Date().toISOString()
       };
 
-      if (this.isInitialized && this.db) {
+      // 1. Save to Realtime Database
+      if (this.rtdb) {
         try {
-          await this.db.collection('users').doc(String(uid)).set(newProfile, { merge: true });
-          console.log('🎉 [EMA Firebase] Nouveau profil cloud créé:', newProfile.name, 'ID:', uid);
+          await this.rtdb.ref('users/' + uid).set(profilePayload);
+          await this.rtdb.ref('leaderboard/' + uid).set({
+            name: profilePayload.name,
+            avatar: profilePayload.avatar,
+            level: profilePayload.level,
+            xp: profilePayload.xp
+          });
+          console.log('☁️ [EMA Firebase] Profil sauvegardé sur Realtime Database (ID:', uid, ')');
         } catch (e) {
-          console.warn('[EMA Firebase] Erreur création profil Firestore:', e);
+          console.warn('[EMA Firebase] RTDB save profile:', e.message);
         }
       }
 
-      return newProfile;
+      // 2. Save to Firestore
+      if (this.db) {
+        try {
+          await this.db.collection('users').doc(String(uid)).set(profilePayload, { merge: true });
+          console.log('☁️ [EMA Firebase] Profil sauvegardé sur Firestore (ID:', uid, ')');
+        } catch (e) {
+          console.warn('[EMA Firebase] Firestore save profile:', e.message);
+        }
+      }
+
+      return true;
     },
 
     /**
      * Load cloud user profile
      */
     async loadUserProfile(fallbackUser) {
-      if (!this.isInitialized || !this.db) return fallbackUser;
-      const uid = (this.auth && this.auth.currentUser) ? this.auth.currentUser.uid : (fallbackUser.user_id || 'guest_device');
+      if (!this.isInitialized) return fallbackUser;
+      const uid = (this.auth && this.auth.currentUser) ? this.auth.currentUser.uid : (fallbackUser.user_id || 'user_' + (fallbackUser.name || 'guest').toLowerCase().replace(/[^a-z0-9]/g, '_'));
 
-      try {
-        const doc = await this.db.collection('users').doc(String(uid)).get();
-        if (doc.exists) {
-          return { ...fallbackUser, ...doc.data() };
-        }
-      } catch (err) {
-        console.warn('[EMA Firebase] Erreur chargement profil cloud:', err);
+      // 1. Try Realtime Database
+      if (this.rtdb) {
+        try {
+          const snap = await this.rtdb.ref('users/' + uid).once('value');
+          const val = snap.val();
+          if (val && val.name) {
+            return { ...fallbackUser, ...val };
+          }
+        } catch (e) {}
       }
+
+      // 2. Try Firestore
+      if (this.db) {
+        try {
+          const doc = await this.db.collection('users').doc(String(uid)).get();
+          if (doc.exists) {
+            return { ...fallbackUser, ...doc.data() };
+          }
+        } catch (e) {}
+      }
+
       return fallbackUser;
     },
 
     /**
-     * Get top learners leaderboard from Firestore
+     * Get top learners leaderboard from Realtime Database or Firestore
      */
     async getLeaderboard(limitCount = 10) {
-      if (!this.isInitialized || !this.db) return [];
+      if (!this.isInitialized) return [];
 
-      try {
-        const snap = await this.db.collection('users')
-          .orderBy('xp', 'desc')
-          .limit(limitCount)
-          .get();
-
-        const leaderboard = [];
-        snap.forEach(doc => {
-          leaderboard.push(doc.data());
-        });
-        return leaderboard;
-      } catch (err) {
-        console.warn('[EMA Firebase] Erreur chargement leaderboard:', err);
-        return [];
+      // 1. Try Realtime Database
+      if (this.rtdb) {
+        try {
+          const snap = await this.rtdb.ref('leaderboard').orderByChild('xp').limitToLast(limitCount).once('value');
+          const val = snap.val();
+          if (val) {
+            const list = Object.values(val);
+            list.sort((a, b) => (b.xp || 0) - (a.xp || 0));
+            return list;
+          }
+        } catch (e) {}
       }
+
+      // 2. Try Firestore
+      if (this.db) {
+        try {
+          const snap = await this.db.collection('users').orderBy('xp', 'desc').limit(limitCount).get();
+          const leaderboard = [];
+          snap.forEach(doc => leaderboard.push(doc.data()));
+          if (leaderboard.length > 0) return leaderboard;
+        } catch (e) {}
+      }
+
+      return [];
     }
   };
 
