@@ -95,9 +95,17 @@ final class EnglishMasterAI {
         );
 
         wp_register_script(
+            'ema-firebase-sync',
+            EMA_PLUGIN_URL . 'assets/js/firebase-sync.js',
+            array(),
+            EMA_VERSION,
+            true
+        );
+
+        wp_register_script(
             'ema-frontend-js',
             EMA_PLUGIN_URL . 'assets/js/frontend-app.js',
-            array('jquery', 'ema-lessons-data'),
+            array('jquery', 'ema-lessons-data', 'ema-firebase-sync'),
             EMA_VERSION,
             true
         );
@@ -133,6 +141,8 @@ final class EnglishMasterAI {
         }
 
         $ai_provider = get_option('ema_ai_provider', 'builtin'); // builtin, openai, gemini, claude
+        $firebase_api_key = get_option('ema_firebase_api_key', '');
+        $firebase_project_id = get_option('ema_firebase_project_id', 'english-master-ai-4936d');
 
         wp_localize_script('ema-frontend-js', 'EMA_CONFIG', array(
             'api_root'     => esc_url_raw(rest_url('english-master-ai/v1/')),
@@ -141,6 +151,12 @@ final class EnglishMasterAI {
             'user'         => $user_data,
             'initial_data' => $lessons_data,
             'ai_provider'  => $ai_provider,
+            'firebase'     => array(
+                'projectId'     => esc_attr($firebase_project_id),
+                'authDomain'    => esc_attr($firebase_project_id) . '.firebaseapp.com',
+                'storageBucket' => esc_attr($firebase_project_id) . '.appspot.com',
+                'apiKey'        => esc_attr($firebase_api_key),
+            ),
             'i18n'         => array(
                 'listening'    => __('Listening', 'english-master-ai'),
                 'speaking'     => __('Speaking', 'english-master-ai'),

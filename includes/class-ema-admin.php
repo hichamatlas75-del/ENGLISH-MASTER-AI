@@ -58,6 +58,8 @@ class EMA_Admin {
         register_setting('ema_settings_group', 'ema_ai_provider', array('sanitize_callback' => 'sanitize_text_field'));
         register_setting('ema_settings_group', 'ema_openai_api_key', array('sanitize_callback' => 'sanitize_text_field'));
         register_setting('ema_settings_group', 'ema_gemini_api_key', array('sanitize_callback' => 'sanitize_text_field'));
+        register_setting('ema_settings_group', 'ema_firebase_api_key', array('sanitize_callback' => 'sanitize_text_field'));
+        register_setting('ema_settings_group', 'ema_firebase_project_id', array('sanitize_callback' => 'sanitize_text_field'));
         register_setting('ema_settings_group', 'ema_certificate_institution', array('sanitize_callback' => 'sanitize_text_field'));
         register_setting('ema_settings_group', 'ema_certificate_signature_name', array('sanitize_callback' => 'sanitize_text_field'));
         register_setting('ema_settings_group', 'ema_daily_goal_default', array('sanitize_callback' => 'absint'));
@@ -184,6 +186,24 @@ class EMA_Admin {
                         <td>
                             <input type="password" name="ema_gemini_api_key" id="ema_gemini_api_key" value="<?php echo esc_attr($gemini_key); ?>" class="regular-text" placeholder="AIzaSy..." />
                             <p class="description">Nécessaire si vous utilisez Google Gemini pour le tuteur conversationnel.</p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><label for="ema_firebase_api_key">🔥 Clé API Web Firebase (Firestore)</label></th>
+                        <td>
+                            <?php $fb_key = get_option('ema_firebase_api_key', ''); ?>
+                            <input type="password" name="ema_firebase_api_key" id="ema_firebase_api_key" value="<?php echo esc_attr($fb_key); ?>" class="regular-text" placeholder="AIzaSy..." />
+                            <p class="description">Trouvez-la dans <em>Paramètres du projet > Général > Vos applications (Web)</em> dans la console Firebase.</p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row"><label for="ema_firebase_project_id">🔥 ID de Projet Firebase</label></th>
+                        <td>
+                            <?php $fb_project = get_option('ema_firebase_project_id', 'english-master-ai-4936d'); ?>
+                            <input type="text" name="ema_firebase_project_id" id="ema_firebase_project_id" value="<?php echo esc_attr($fb_project); ?>" class="regular-text" placeholder="english-master-ai-4936d" />
+                            <p class="description">ID de votre projet Firebase Firestore (ex: <code>english-master-ai-4936d</code>).</p>
                         </td>
                     </tr>
 

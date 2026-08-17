@@ -29,6 +29,9 @@
   <!-- Local Dataset for Instant Offline & File:// Compatibility -->
   <script src="assets/js/lessons-data.js"></script>
 
+  <!-- Firebase Cloud Sync Engine -->
+  <script src="assets/js/firebase-sync.js"></script>
+
   <!-- Injected Config -->
   <script>
     window.EMA_CONFIG = {
@@ -36,6 +39,12 @@
       nonce: '',
       plugin_url: './',
       initial_data: window.EMA_DATASET || null,
+      firebase: {
+        projectId: "english-master-ai-4936d",
+        authDomain: "english-master-ai-4936d.firebaseapp.com",
+        storageBucket: "english-master-ai-4936d.appspot.com",
+        apiKey: localStorage.getItem('ema_firebase_api_key') || ""
+      },
       user: {
         name: 'Alex Martin',
         level: 'B1',

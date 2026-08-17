@@ -219,11 +219,28 @@
       } catch (e) {}
     }
 
+    // Try initializing Firebase Cloud Sync
+    if (window.EMA_Firebase) {
+      window.EMA_Firebase.init().then(async (connected) => {
+        if (connected) {
+          const cloudCurriculum = await window.EMA_Firebase.fetchCurriculum();
+          if (cloudCurriculum) {
+            appData = cloudCurriculum;
+          }
+          currentUser = await window.EMA_Firebase.loadUserProfile(currentUser);
+          renderApp();
+        }
+      });
+    }
+
     renderApp();
   }
 
   function saveProfile() {
     localStorage.setItem('ema_user_profile', JSON.stringify(currentUser));
+    if (window.EMA_Firebase && window.EMA_Firebase.isInitialized) {
+      window.EMA_Firebase.saveUserProfile(currentUser);
+    }
   }
 
   function renderApp() {
@@ -635,6 +652,32 @@
         <button class="ema-mobile-primary-btn" style="padding: 10px; margin-bottom: 0;" onclick="window.EMA.openAssessmentModal()">
           Passer le test (6 questions)
         </button>
+      </div>
+
+      <!-- Firebase Cloud Sync Card -->
+      <div class="ema-current-level-card" style="background: linear-gradient(135deg, #131c38 0%, #1e1b4b 100%); border-color: rgba(245, 158, 11, 0.3); margin-bottom: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 22px;">🔥</span>
+            <span style="font-size: 14px; font-weight: 800; color: #fff;">Firebase Firestore Cloud</span>
+          </div>
+          <span class="ema-header-badge" style="background: ${(window.EMA_Firebase && window.EMA_Firebase.isInitialized) ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)'}; color: ${(window.EMA_Firebase && window.EMA_Firebase.isInitialized) ? '#34d399' : '#fbbf24'}; border-color: ${(window.EMA_Firebase && window.EMA_Firebase.isInitialized) ? '#10b981' : '#f59e0b'};">
+            ${(window.EMA_Firebase && window.EMA_Firebase.isInitialized) ? '● Connecté' : '⚡ Prêt'}
+          </span>
+        </div>
+        <p style="font-size: 12px; color: var(--ema-text-muted); margin: 0 0 12px 0;">
+          ${(window.EMA_Firebase && window.EMA_Firebase.isInitialized) ? 'Données & progression synchronisées en temps réel sur Firestore.' : 'Connectez votre projet Firebase pour synchroniser vos 120 QCM et votre progression dans le cloud.'}
+        </p>
+        <div style="display: flex; gap: 8px;">
+          <button class="ema-mobile-primary-btn" style="flex: 1; padding: 10px; margin-bottom: 0; font-size: 13px;" onclick="window.EMA.openFirebaseModal()">
+            ⚙️ Paramètres Firebase
+          </button>
+          ${(window.EMA_Firebase && window.EMA_Firebase.isInitialized) ? `
+            <button class="ema-mobile-primary-btn" style="flex: 1; padding: 10px; margin-bottom: 0; font-size: 13px; background: #10b981;" onclick="window.EMA.seedFirebaseData()">
+              🚀 Uploader Dataset (120 QCM)
+            </button>
+          ` : ''}
+        </div>
       </div>
 
       <!-- Certificate Card -->
@@ -1060,6 +1103,114 @@
     openUnitDetail(id, title) {
       AudioFX.playTap();
       window.EMA.navTo('speak');
+    },
+
+    openFirebaseModal() {
+      AudioFX.playTap();
+      const currentKey = localStorage.getItem('ema_firebase_api_key') || (CONFIG.firebase && CONFIG.firebase.apiKey) || '';
+      const projectId = (CONFIG.firebase && CONFIG.firebase.projectId) || 'english-master-ai-4936d';
+
+      const html = `
+        <div style="font-size: 14px; margin-bottom: 14px;">
+          Synchronisez votre application avec votre base de données <strong>Google Firebase Firestore</strong> pour du contenu illimité et une synchronisation cloud en temps réel.
+        </div>
+
+        <div style="background: #111933; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+          <div style="font-size: 11px; color: var(--ema-text-muted); margin-bottom: 4px;">PROJECT ID :</div>
+          <div style="font-size: 14px; font-weight: bold; color: #60a5fa; font-family: monospace;">${escapeHTML(projectId)}</div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 12px; color: var(--ema-text-muted); font-weight: 700; margin-bottom: 6px;">
+            CLÉ API WEB (apiKey Firebase) :
+          </label>
+          <input type="text" id="ema-fb-api-key" value="${escapeHTML(currentKey)}" placeholder="AIzaSy..." 
+            style="width: 100%; box-sizing: border-box; background: #111933; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; padding: 12px; font-size: 13px; font-family: monospace;" />
+          <div style="font-size: 11px; color: var(--ema-text-muted); margin-top: 6px;">
+            Trouvez-la dans <em>Paramètres du projet > Général > Vos applications (Web)</em> dans la console Firebase.
+          </div>
+        </div>
+      `;
+
+      const footer = `
+        <button class="ema-mobile-primary-btn" onclick="window.EMA.saveFirebaseKey()">
+          💾 Enregistrer & Connecter
+        </button>
+      `;
+
+      Modal.open('🔥 Configuration Firebase', html, footer);
+    },
+
+    async saveFirebaseKey() {
+      const input = document.getElementById('ema-fb-api-key');
+      if (!input) return;
+      const key = input.value.trim();
+      localStorage.setItem('ema_firebase_api_key', key);
+      
+      if (!CONFIG.firebase) CONFIG.firebase = {};
+      CONFIG.firebase.apiKey = key;
+
+      if (window.EMA_Firebase) {
+        const ok = await window.EMA_Firebase.init({
+          projectId: "english-master-ai-4936d",
+          authDomain: "english-master-ai-4936d.firebaseapp.com",
+          storageBucket: "english-master-ai-4936d.appspot.com",
+          apiKey: key
+        });
+
+        if (ok) {
+          AudioFX.playSuccess();
+          Modal.open('🔥 Connexion Réussie', `
+            <div style="text-align: center; padding: 10px 0;">
+              <div style="font-size: 40px; margin-bottom: 10px;">✅</div>
+              <h3 style="color: #10b981; margin: 0 0 10px 0;">Connecté à Firestore !</h3>
+              <p style="font-size: 13px; color: #cbd5e1;">Votre application est maintenant reliée au projet <code>english-master-ai-4936d</code>.</p>
+            </div>
+          `, `<button class="ema-mobile-primary-btn" onclick="Modal.close(); renderApp();">Terminer</button>`);
+          return;
+        }
+      }
+
+      AudioFX.playTap();
+      Modal.close();
+      renderApp();
+    },
+
+    async seedFirebaseData() {
+      if (!window.EMA_Firebase || !window.EMA_Firebase.isInitialized) {
+        alert("Veuillez d'abord configurer votre clé API Firebase.");
+        return;
+      }
+
+      AudioFX.playTap();
+      Modal.open('🚀 Synchronisation Cloud', `
+        <div style="text-align: center; padding: 20px 0;">
+          <div style="font-size: 40px; margin-bottom: 10px; animation: wave-anim 1s infinite alternate;">⏳</div>
+          <h3 style="color: #60a5fa; margin: 0 0 10px 0;">Envoi vers Firestore en cours...</h3>
+          <p style="font-size: 13px; color: var(--ema-text-muted);">Transfert des 120 QCM, 90 mots de vocabulaire, 18 modules d'écoute et 6 niveaux vers la base de données cloud.</p>
+        </div>
+      `);
+
+      try {
+        await window.EMA_Firebase.seedFirestore(window.EMA_DATASET);
+        AudioFX.playSuccess();
+        Modal.open('🎉 Données Envoyées !', `
+          <div style="text-align: center; padding: 10px 0;">
+            <div style="font-size: 40px; margin-bottom: 10px;">☁️✨</div>
+            <h3 style="color: #10b981; margin: 0 0 10px 0;">120 QCM & Contenu sur Firestore !</h3>
+            <p style="font-size: 13px; color: #cbd5e1;">Toutes les collections (grammar, vocabulary, listening, writing, levels) sont désormais disponibles et modifiables en direct depuis la console Firebase.</p>
+          </div>
+        `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Super !</button>`);
+      } catch (err) {
+        Modal.open('❌ Erreur d\'envoi', `
+          <div style="text-align: center; padding: 10px 0;">
+            <div style="font-size: 40px; margin-bottom: 10px;">⚠️</div>
+            <h3 style="color: #ef4444; margin: 0 0 10px 0;">Échec du transfert</h3>
+            <p style="font-size: 13px; color: #cbd5e1;">${escapeHTML(err.message)}</p>
+            <p style="font-size: 11px; color: var(--ema-text-muted);">Assurez-vous d'avoir cliqué sur "Créer une base de données" dans Firestore Database dans la console Firebase.</p>
+          </div>
+        `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Fermer</button>`);
+      }
     }
   };
 
