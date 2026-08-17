@@ -44,14 +44,22 @@ class EMA_Rest_API {
         register_rest_route($this->namespace, '/ai/chat', array(
             'methods'             => 'POST',
             'callback'            => array($this, 'handle_ai_chat'),
-            'permission_callback' => '__return_true',
+            'permission_callback' => function($request) {
+                $nonce = $request->get_header('X-WP-Nonce');
+                if ($nonce && wp_verify_nonce($nonce, 'wp_rest')) return true;
+                return is_user_logged_in();
+            },
         ));
 
         // AI Writing Correction
         register_rest_route($this->namespace, '/ai/correct-writing', array(
             'methods'             => 'POST',
             'callback'            => array($this, 'correct_writing'),
-            'permission_callback' => '__return_true',
+            'permission_callback' => function($request) {
+                $nonce = $request->get_header('X-WP-Nonce');
+                if ($nonce && wp_verify_nonce($nonce, 'wp_rest')) return true;
+                return is_user_logged_in();
+            },
         ));
     }
 
@@ -143,10 +151,12 @@ class EMA_Rest_API {
             ));
 
             $table_stats = $wpdb->prefix . 'ema_user_stats';
-            $wpdb->query($wpdb->prepare(
-                "UPDATE $table_stats SET total_xp = total_xp + %d WHERE user_id = %d",
-                $xp, $user_id
-            ));
+            $exists = $wpdb->get_var($wpdb->prepare("SELECT user_id FROM $table_stats WHERE user_id = %d", $user_id));
+            if (!$exists) {
+                $wpdb->insert($table_stats, array('user_id' => $user_id, 'total_xp' => $xp, 'current_level' => 'A1', 'streak_days' => 1, 'daily_goal_minutes' => 30));
+            } else {
+                $wpdb->query($wpdb->prepare("UPDATE $table_stats SET total_xp = total_xp + %d WHERE user_id = %d", $xp, $user_id));
+            }
         }
 
         return rest_ensure_response(array(
@@ -161,24 +171,70 @@ class EMA_Rest_API {
         $word_id = sanitize_text_field($params['word_id'] ?? '');
         $rating  = intval($params['rating'] ?? 4); // 0 (blackout) to 5 (perfect)
 
-        // SuperMemo-2 Algorithm Implementation
-        // EF' = EF + (0.1 - (5 - grade) * (0.08 + (5 - grade) * 0.02))
         $user_id = get_current_user_id();
-
+        
         $ease_factor = 2.5;
         $interval = 1;
-        $repetitions = 1;
+        $repetitions = 0;
         $status = 'learning';
-
-        if ($rating >= 4) {
-            $interval = 3;
-            $status = 'mastered';
-        } elseif ($rating == 3) {
-            $interval = 1;
-            $status = 'review';
+        
+        if ($user_id > 0) {
+            global $wpdb;
+            $table_srs = $wpdb->prefix . 'ema_srs_vocabulary';
+            
+            // Load existing card data
+            $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_srs WHERE user_id = %d AND word_id = %s", $user_id, $word_id));
+            
+            if ($row) {
+                $ease_factor = floatval($row->ease_factor);
+                $interval = floatval($row->interval_days);
+                $repetitions = intval($row->repetition);
+            }
+            
+            // SuperMemo-2 Algorithm Implementation
+            // EF' = EF + (0.1 - (5 - grade) * (0.08 + (5 - grade) * 0.02))
+            $ease_factor = $ease_factor + (0.1 - (5 - $rating) * (0.08 + (5 - $rating) * 0.02));
+            $ease_factor = max(1.3, $ease_factor);
+            
+            if ($rating >= 3) {
+                if ($repetitions == 0) {
+                    $interval = 1;
+                } elseif ($repetitions == 1) {
+                    $interval = 6;
+                } else {
+                    $interval = round($interval * $ease_factor);
+                }
+                $repetitions++;
+                $status = $rating >= 4 ? 'mastered' : 'review';
+            } else {
+                $repetitions = 0;
+                $interval = 1;
+                $status = 'learning';
+            }
+            
+            $next_review = date('Y-m-d H:i:s', strtotime("+$interval days"));
+            
+            $wpdb->replace($table_srs, array(
+                'user_id' => $user_id,
+                'word_id' => $word_id,
+                'repetition' => $repetitions,
+                'interval_days' => $interval,
+                'ease_factor' => $ease_factor,
+                'status' => $status,
+                'next_review_at' => $next_review,
+            ));
         } else {
-            $interval = 0.5;
-            $status = 'learning';
+            // Guest mode fallback
+            if ($rating >= 4) {
+                $interval = 3;
+                $status = 'mastered';
+            } elseif ($rating == 3) {
+                $interval = 1;
+                $status = 'review';
+            } else {
+                $interval = 0.5;
+                $status = 'learning';
+            }
         }
 
         return rest_ensure_response(array(
@@ -198,11 +254,17 @@ class EMA_Rest_API {
 
         $provider = get_option('ema_ai_provider', 'builtin');
         $api_key  = get_option('ema_openai_api_key', '');
+        $gemini_key = get_option('ema_gemini_api_key', '');
 
         // If an OpenAI or Gemini API Key is configured in WP Admin, we can call it:
         if ($provider === 'openai' && !empty($api_key)) {
             $response = $this->call_openai_chat($message, $history, $api_key, $scenario_id);
-            if (!is_wp_error($response)) {
+            if (!is_wp_error($response) && !empty($response['reply'])) {
+                return rest_ensure_response($response);
+            }
+        } elseif ($provider === 'gemini' && !empty($gemini_key)) {
+            $response = $this->call_gemini_chat($message, $history, $gemini_key, $scenario_id);
+            if (!is_wp_error($response) && !empty($response['reply'])) {
                 return rest_ensure_response($response);
             }
         }
@@ -331,7 +393,15 @@ class EMA_Rest_API {
         }
 
         $word_count = str_word_count($text);
-        $score = min(98, max(60, 70 + ($word_count > 30 ? 15 : 5)));
+        
+        $sentences = preg_split('/[.!?]+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+        $sentence_count = count($sentences);
+        
+        $words = str_word_count(strtolower($text), 1);
+        $unique_words = count(array_unique($words));
+        $lexical_diversity = $word_count > 0 ? $unique_words / $word_count : 0;
+        
+        $score = min(98, max(60, 60 + ($word_count > 30 ? 10 : 0) + ($sentence_count > 2 ? 10 : 0) + ($lexical_diversity > 0.5 ? 10 : 0) + ($lexical_diversity > 0.7 ? 8 : 0)));
 
         $feedback_list = array();
         
@@ -347,6 +417,13 @@ class EMA_Rest_API {
                 'message' => 'Bonne longueur de texte (' . $word_count . ' mots).'
             );
         }
+        
+        if ($sentence_count < 3) {
+            $feedback_list[] = array(
+                'type'    => 'suggestion',
+                'message' => 'Essayez de diviser vos idées en plusieurs phrases pour plus de clarté.'
+            );
+        }
 
         if (preg_match('/\b(firstly|then|afterwards|moreover|finally|furthermore|in addition)\b/i', $text)) {
             $feedback_list[] = array(
@@ -359,13 +436,32 @@ class EMA_Rest_API {
                 'message' => 'Conseil : Utilisez des connecteurs comme "First", "Then", "Moreover" pour structurer vos paragraphes.'
             );
         }
+        
+        // Common spelling patterns
+        if (preg_match('/\b(teh)\b/i', $text) || preg_match('/\b(alot)\b/i', $text) || preg_match('/\b(recieve)\b/i', $text)) {
+            $feedback_list[] = array(
+                'type'    => 'tip',
+                'message' => 'Faites attention aux fautes de frappe courantes (ex: the, a lot, receive).'
+            );
+        }
+        
+        if ($lexical_diversity > 0.6) {
+            $feedback_list[] = array(
+                'type'    => 'success',
+                'message' => 'Très bonne diversité de vocabulaire !'
+            );
+        }
+        
+        $cefr_level = 'A2';
+        if ($word_count > 40 && $lexical_diversity > 0.5 && $sentence_count > 3) $cefr_level = 'B1+';
+        if ($word_count > 80 && $lexical_diversity > 0.65 && $sentence_count > 6) $cefr_level = 'B2';
 
         return rest_ensure_response(array(
             'score'       => $score,
             'word_count'  => $word_count,
             'feedback'    => $feedback_list,
             'corrected'   => ucfirst(trim($text)),
-            'cefr_level'  => $word_count > 40 ? 'B1+' : 'A2',
+            'cefr_level'  => $cefr_level,
             'xp_awarded'  => 25
         ));
     }
@@ -401,6 +497,52 @@ class EMA_Rest_API {
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
         $reply = $body['choices'][0]['message']['content'] ?? '';
+
+        return array(
+            'reply'      => $reply,
+            'correction' => null,
+            'tip'        => null,
+            'audio_text' => $reply,
+        );
+    }
+    
+    private function call_gemini_chat($message, $history, $api_key, $scenario) {
+        $system_prompt = "You are an empathetic, encouraging and world-class English tutor in the English Master AI platform. Keep replies concise (2-3 sentences), natural, ask a follow-up question, and offer a short grammar/vocabulary tip if appropriate.";
+        
+        $contents = array();
+        
+        // Gemini expects role to be 'user' or 'model'
+        foreach ($history as $h) {
+            $role = ($h['role'] === 'assistant' || $h['role'] === 'model') ? 'model' : 'user';
+            $contents[] = array('role' => $role, 'parts' => array(array('text' => $h['content'])));
+        }
+        
+        $contents[] = array('role' => 'user', 'parts' => array(array('text' => $message)));
+        
+        $body = array(
+            'systemInstruction' => array(
+                'parts' => array(array('text' => $system_prompt))
+            ),
+            'contents' => $contents,
+            'generationConfig' => array(
+                'temperature' => 0.7
+            )
+        );
+
+        $response = wp_remote_post('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' . $api_key, array(
+            'headers' => array(
+                'Content-Type'  => 'application/json',
+            ),
+            'body'    => json_encode($body),
+            'timeout' => 15,
+        ));
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $body_data = json_decode(wp_remote_retrieve_body($response), true);
+        $reply = $body_data['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
         return array(
             'reply'      => $reply,

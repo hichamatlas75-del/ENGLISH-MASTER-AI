@@ -47,6 +47,7 @@ final class EnglishMasterAI {
         register_activation_hook(__FILE__, array('EMA_Activator', 'activate'));
         register_deactivation_hook(__FILE__, array('EMA_Activator', 'deactivate'));
 
+        add_action('init', array($this, 'load_textdomain'));
         add_action('init', array($this, 'register_shortcodes'));
         add_action('init', array($this, 'add_rewrite_rules'));
         add_filter('query_vars', array($this, 'add_query_vars'));
@@ -61,6 +62,10 @@ final class EnglishMasterAI {
 
         // REST API
         add_action('rest_api_init', array(new EMA_Rest_API(), 'register_routes'));
+    }
+
+    public function load_textdomain() {
+        load_plugin_textdomain('english-master-ai', false, dirname(plugin_basename(__FILE__)) . '/languages');
     }
 
     /**
@@ -97,9 +102,8 @@ final class EnglishMasterAI {
             true
         );
 
-        // Get initial data
-        $lessons_file = EMA_PLUGIN_DIR . 'includes/data/lessons-data.json';
-        $lessons_data = file_exists($lessons_file) ? json_decode(file_get_contents($lessons_file), true) : array();
+        // Get initial data - defer reading to render_shortcode
+        $lessons_data = array();
 
         $current_user = wp_get_current_user();
         $user_data = array(
@@ -115,6 +119,18 @@ final class EnglishMasterAI {
             'daily_spent'  => 20,
             'xp'           => 1480
         );
+        
+        if (is_user_logged_in()) {
+            global $wpdb;
+            $table_stats = $wpdb->prefix . 'ema_user_stats';
+            $stats = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_stats WHERE user_id = %d", $current_user->ID), ARRAY_A);
+            if ($stats) {
+                $user_data['level'] = $stats['current_level'] ?? 'B1';
+                $user_data['streak'] = $stats['streak_days'] ?? 1;
+                $user_data['xp'] = $stats['total_xp'] ?? 0;
+                $user_data['daily_goal'] = $stats['daily_goal_minutes'] ?? 30;
+            }
+        }
 
         $ai_provider = get_option('ema_ai_provider', 'builtin'); // builtin, openai, gemini, claude
 
@@ -149,6 +165,9 @@ final class EnglishMasterAI {
     public function render_shortcode($atts) {
         wp_enqueue_style('ema-frontend-css');
         wp_enqueue_script('ema-frontend-js');
+
+        $lessons_file = EMA_PLUGIN_DIR . 'includes/data/lessons-data.json';
+        $lessons_data = file_exists($lessons_file) ? json_decode(file_get_contents($lessons_file), true) : array();
 
         ob_start();
         include EMA_PLUGIN_DIR . 'templates/app-container.php';

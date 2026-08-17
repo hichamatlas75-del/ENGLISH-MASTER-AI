@@ -24,6 +24,21 @@
     initial_data: null,
   };
 
+  // Utility: Escape HTML
+  function escapeHTML(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[&<>"']/g, function(match) {
+      const escape = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      };
+      return escape[match];
+    });
+  }
+
   // State
   let appData = CONFIG.initial_data || window.EMA_DATASET;
   let currentUser = { ...CONFIG.user };
@@ -33,6 +48,7 @@
   let selectedUnit = null;
   let recognitionInstance = null;
   let isRecording = false;
+  let currentPronunIndex = 0;
 
   // Sound effects
   const AudioFX = {
@@ -84,6 +100,104 @@
     u.rate = rate;
     window.speechSynthesis.speak(u);
   }
+
+  // REST API Integration Helper
+  async function apiCall(endpoint, method = 'GET', body = null) {
+    try {
+      const res = await fetch(CONFIG.api_root + endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CONFIG.nonce },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (!res.ok) throw new Error('API error');
+      return await res.json();
+    } catch(e) {
+      console.warn('API offline, using local fallback', e);
+      return null;
+    }
+  }
+
+  // Levenshtein Distance for Pronunciation Accuracy
+  function levenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) == a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  }
+
+  // Modal Manager
+  const Modal = {
+    overlay: null,
+    open(title, contentHTML, footerHTML = '') {
+      this.close(); // Close any existing modal
+      this.overlay = document.createElement('div');
+      this.overlay.className = 'ema-modal-overlay';
+      this.overlay.onclick = (e) => {
+        if (e.target === this.overlay) this.close();
+      };
+
+      const card = document.createElement('div');
+      card.className = 'ema-modal-card';
+      
+      const header = document.createElement('div');
+      header.className = 'ema-modal-header';
+      header.innerHTML = `<span>${escapeHTML(title)}</span>`;
+      
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'ema-modal-close';
+      closeBtn.innerHTML = '✕';
+      closeBtn.onclick = () => this.close();
+      header.appendChild(closeBtn);
+
+      const body = document.createElement('div');
+      body.className = 'ema-modal-body';
+      body.innerHTML = contentHTML;
+
+      card.appendChild(header);
+      card.appendChild(body);
+
+      if (footerHTML) {
+        const footer = document.createElement('div');
+        footer.className = 'ema-modal-footer';
+        footer.innerHTML = footerHTML;
+        card.appendChild(footer);
+      }
+
+      this.overlay.appendChild(card);
+      
+      const viewport = document.querySelector('.ema-app-viewport');
+      if (viewport) {
+        viewport.appendChild(this.overlay);
+      } else {
+        document.body.appendChild(this.overlay);
+      }
+    },
+    close() {
+      if (this.overlay && this.overlay.parentNode) {
+        // Optional: Add close animation logic here before removing
+        this.overlay.parentNode.removeChild(this.overlay);
+      }
+      this.overlay = null;
+    },
+    isOpen() {
+      return this.overlay !== null;
+    }
+  };
 
   // Init
   if (document.readyState === 'loading') {
@@ -177,23 +291,23 @@
   }
 
   /* -------------------------------------------------------------
-     SCREEN 1: HOME DASHBOARD (Mockup Screen 1)
+     SCREEN 1: HOME DASHBOARD
      ------------------------------------------------------------- */
   function renderHomeScreen() {
     return `
       <!-- Greeting -->
       <div class="ema-home-greeting">
-        <h2>Good morning, ${currentUser.name}! 👋</h2>
+        <h2>Good morning, ${escapeHTML(currentUser.name)}! 👋</h2>
         <p>Ready to improve your English today?</p>
       </div>
 
       <!-- Current Level Banner Card -->
       <div class="ema-current-level-card" onclick="window.EMA.navTo('learn')" style="cursor: pointer;">
         <div class="ema-level-row">
-          <div class="ema-level-pill-badge">${currentUser.level}</div>
+          <div class="ema-level-pill-badge">${escapeHTML(currentUser.level)}</div>
           <div class="ema-level-meta">
             <div class="sub">Current Level</div>
-            <div class="name">${currentUser.level_name}</div>
+            <div class="name">${escapeHTML(currentUser.level_name)}</div>
             <div class="ema-progress-track">
               <div class="ema-progress-fill" style="width: ${currentUser.progress}%;"></div>
             </div>
@@ -277,16 +391,49 @@
   }
 
   /* -------------------------------------------------------------
-     SCREEN 2: LEARN / PARCOURS A1-C2 (Mockup Screen 2)
+     SCREEN 2: LEARN / PARCOURS A1-C2
      ------------------------------------------------------------- */
   function renderLearnScreen() {
     const levelObj = appData.levels.find(l => l.id === activeLevelId) || appData.levels[1];
+
+    let content = '';
+
+    if (activeUnitTab === 'units') {
+      content = levelObj.units.map((unit) => `
+        <div class="ema-unit-card" onclick="window.EMA.openUnitDetail('${escapeHTML(unit.id)}', '${escapeHTML(unit.title)}')">
+          <div class="ema-unit-icon">${escapeHTML(unit.icon)}</div>
+          <div class="ema-unit-details">
+            <div class="title">${escapeHTML(unit.title)}</div>
+            <div class="count">${unit.lessons_completed}/${unit.lessons_total} lessons</div>
+          </div>
+          <div class="ema-chevron-right">›</div>
+        </div>
+      `).join('');
+    } else {
+      // Flatten lessons
+      const lessons = [];
+      levelObj.units.forEach(unit => {
+        if (unit.lessons) {
+          unit.lessons.forEach(lesson => lessons.push({ ...lesson, unitTitle: unit.title }));
+        }
+      });
+      content = lessons.map(lesson => `
+        <div class="ema-recom-item" onclick="window.EMA.navTo('speak')">
+          <div class="ema-recom-icon-box" style="background: rgba(37, 99, 235, 0.15); color: #60a5fa;">📘</div>
+          <div class="ema-recom-info">
+            <div class="cat" style="color: #60a5fa;">${escapeHTML(lesson.unitTitle)}</div>
+            <div class="title">${escapeHTML(lesson.title)}</div>
+          </div>
+          <div class="ema-recom-time">${lesson.completed ? '✅' : '15 min ❯'}</div>
+        </div>
+      `).join('');
+    }
 
     return `
       <!-- Header -->
       <div class="ema-mobile-header" style="padding-left: 0; padding-right: 0;">
         <button class="ema-header-btn-back" onclick="window.EMA.navTo('home')">‹</button>
-        <h3 class="ema-header-title">${levelObj.title}</h3>
+        <h3 class="ema-header-title">${escapeHTML(levelObj.title)}</h3>
         <span class="ema-header-badge">45%</span>
       </div>
 
@@ -296,25 +443,16 @@
         <button class="ema-segment-btn ${activeUnitTab === 'lessons' ? 'active' : ''}" onclick="window.EMA.setUnitTab('lessons')">Lessons</button>
       </div>
 
-      <!-- Units List -->
-      ${levelObj.units.map((unit, idx) => `
-        <div class="ema-unit-card" onclick="window.EMA.openUnitDetail('${unit.id}', '${unit.title}')">
-          <div class="ema-unit-icon">${unit.icon}</div>
-          <div class="ema-unit-details">
-            <div class="title">${unit.title}</div>
-            <div class="count">${unit.lessons_completed}/${unit.lessons_total} lessons</div>
-          </div>
-          <div class="ema-chevron-right">›</div>
-        </div>
-      `).join('')}
+      <!-- List -->
+      ${content}
     `;
   }
 
   /* -------------------------------------------------------------
-     SCREEN 3: SPEAK & PRONUNCIATION (Mockup Screen 3)
+     SCREEN 3: SPEAK & PRONUNCIATION
      ------------------------------------------------------------- */
   function renderSpeakScreen() {
-    const pronunWord = appData.pronunciation_words[0];
+    const pronunWord = appData.pronunciation_words[currentPronunIndex % appData.pronunciation_words.length];
 
     return `
       <!-- Header -->
@@ -326,17 +464,17 @@
 
       <div class="ema-pronun-container">
         <!-- Target Word & Phonetic -->
-        <h1 class="ema-target-word-title">${pronunWord.word}</h1>
-        <div class="ema-target-word-ipa">${pronunWord.phonetic}</div>
+        <h1 class="ema-target-word-title">${escapeHTML(pronunWord.word)}</h1>
+        <div class="ema-target-word-ipa">${escapeHTML(pronunWord.phonetic)}</div>
         
         <div class="ema-audio-sub-prompt">Listen and repeat</div>
 
         <!-- Listen & Record Buttons -->
         <div class="ema-pronun-actions-row">
-          <button class="ema-btn-circle-listen" onclick="window.EMA.listenWord('${pronunWord.word}')" title="Listen">
+          <button class="ema-btn-circle-listen" onclick="window.EMA.listenWord('${escapeHTML(pronunWord.word)}')" title="Listen">
             🔊
           </button>
-          <button class="ema-btn-circle-mic" id="ema-mobile-mic-btn" onclick="window.EMA.toggleMobileRecord('${pronunWord.word}')" title="Speak">
+          <button class="ema-btn-circle-mic" id="ema-mobile-mic-btn" onclick="window.EMA.toggleMobileRecord('${escapeHTML(pronunWord.word)}')" title="Speak">
             🎙️
           </button>
         </div>
@@ -354,26 +492,26 @@
         <!-- Feedback Card -->
         <div class="ema-feedback-box">
           <div class="top">
-            <span>Great job!</span> <span>🎉</span>
+            <span>Keep going!</span> <span>💪</span>
           </div>
-          <div class="sub">Your pronunciation is very good.</div>
+          <div class="sub">Practice makes perfect.</div>
           <div class="tips-title">Tips:</div>
           <ul>
-            <li>Try to pronounce the 'th' sound.</li>
-            <li>Keep your tongue between your teeth.</li>
+            <li>Speak clearly and naturally.</li>
+            <li>Focus on the phonetic sounds.</li>
           </ul>
         </div>
 
         <!-- Continue Button -->
         <button class="ema-mobile-primary-btn" onclick="window.EMA.continuePronunciation()">
-          Continue
+          Skip / Next Word
         </button>
       </div>
     `;
   }
 
   /* -------------------------------------------------------------
-     SCREEN 4: PRACTICE (Grammar, Vocab SRS, Listening, Writing)
+     SCREEN 4: PRACTICE
      ------------------------------------------------------------- */
   function renderPracticeScreen() {
     const vocab = appData.vocabulary_items[0];
@@ -391,11 +529,11 @@
         <div style="font-size: 11px; color: #f59e0b; font-weight: 800; text-transform: uppercase; margin-bottom: 6px;">
           🧠 Répétition Espacée (SRS)
         </div>
-        <div style="font-size: 34px; margin-bottom: 4px;">${vocab.image_icon}</div>
-        <h2 style="font-size: 26px; margin: 0; color: #fff;">${vocab.word}</h2>
-        <div style="font-family: monospace; color: #93c5fd; font-size: 15px; margin: 2px 0 8px 0;">${vocab.phonetic}</div>
-        <div style="font-size: 16px; font-weight: 700; color: #f59e0b; margin-bottom: 8px;">${vocab.translation}</div>
-        <p style="font-size: 12px; color: #cbd5e1; font-style: italic; margin-bottom: 14px;">"${vocab.example}"</p>
+        <div style="font-size: 34px; margin-bottom: 4px;">${escapeHTML(vocab.image_icon)}</div>
+        <h2 style="font-size: 26px; margin: 0; color: #fff;">${escapeHTML(vocab.word)}</h2>
+        <div style="font-family: monospace; color: #93c5fd; font-size: 15px; margin: 2px 0 8px 0;">${escapeHTML(vocab.phonetic)}</div>
+        <div style="font-size: 16px; font-weight: 700; color: #f59e0b; margin-bottom: 8px;">${escapeHTML(vocab.translation)}</div>
+        <p style="font-size: 12px; color: #cbd5e1; font-style: italic; margin-bottom: 14px;">"${escapeHTML(vocab.example)}"</p>
         
         <div style="display: flex; gap: 8px;">
           <button class="button" style="flex: 1; background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 10px; border-radius: 10px; font-weight: bold;" onclick="window.EMA.srsRate(1)">À revoir</button>
@@ -480,9 +618,9 @@
       <!-- Certificate Card -->
       <div class="ema-current-level-card" style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); border-color: rgba(251,191,36,0.3); text-align: center;">
         <div style="font-size: 36px; margin-bottom: 4px;">🎓</div>
-        <h3 style="margin: 0; font-size: 18px; color: #fbbf24;">Certificat de Niveau B1</h3>
-        <p style="font-size: 12px; color: #94a3b8; margin: 4px 0 14px 0;">Délivré officiellement à ${currentUser.name} Martin</p>
-        <button class="ema-mobile-primary-btn" style="background: #fbbf24; color: #0f172a; padding: 12px; margin-bottom: 0;" onclick="window.print()">
+        <h3 style="margin: 0; font-size: 18px; color: #fbbf24;">Certificat de Niveau ${escapeHTML(currentUser.level)}</h3>
+        <p style="font-size: 12px; color: #94a3b8; margin: 4px 0 14px 0;">Délivré officiellement à ${escapeHTML(currentUser.name)}</p>
+        <button class="ema-mobile-primary-btn" style="background: #fbbf24; color: #0f172a; padding: 12px; margin-bottom: 0;" onclick="window.EMA.downloadCertificate()">
           🖨️ Télécharger le Diplôme (PDF)
         </button>
       </div>
@@ -531,10 +669,33 @@
 
       recognitionInstance.onresult = (e) => {
         const spoken = e.results[0][0].transcript.toLowerCase();
+        const target = targetWord.toLowerCase();
+        
+        const dist = levenshteinDistance(spoken, target);
+        const accuracy = Math.max(0, 100 - (dist / target.length * 100)).toFixed(0);
+        
         AudioFX.playSuccess();
         currentUser.xp += 25;
         saveProfile();
-        alert(`🎙️ Prononciation détectée : "${spoken}"\nPrécision : 92% (Excellent !)\n+25 XP gagnés !`);
+        
+        let feedbackHTML = `
+          <div class="ema-score-circle">${accuracy}%</div>
+          <div style="text-align:center; margin-bottom: 16px;">
+            <p style="color: var(--ema-text-muted); font-size: 14px; margin-bottom: 4px;">Target: <strong>${escapeHTML(targetWord)}</strong></p>
+            <p style="color: #fff; font-size: 16px;">You said: <strong>${escapeHTML(spoken)}</strong></p>
+          </div>
+          <div class="ema-feedback-box">
+            <div class="tips-title">Tips:</div>
+            <ul>
+              <li>${accuracy >= 80 ? 'Excellent pronunciation!' : 'Try to match the phonetic sounds more closely.'}</li>
+              <li>Keep practicing to improve!</li>
+            </ul>
+          </div>
+        `;
+        
+        const footerHTML = `<button class="ema-mobile-primary-btn" onclick="Modal.close(); window.EMA.continuePronunciation()">Continue (+25 XP)</button>`;
+        
+        Modal.open('Pronunciation Result', feedbackHTML, footerHTML);
       };
 
       recognitionInstance.onend = () => {
@@ -549,8 +710,8 @@
       AudioFX.playSuccess();
       currentUser.xp += 20;
       saveProfile();
-      alert("Exercice validé avec succès ! (+20 XP)");
-      window.EMA.navTo('home');
+      currentPronunIndex++;
+      renderApp(); // re-render speak screen to show next word
     },
 
     startDailyLesson() {
@@ -561,49 +722,303 @@
       window.EMA.navTo('speak');
     },
 
-    srsRate(quality) {
+    async srsRate(quality) {
+      AudioFX.playTap();
+      // Example integration
+      await apiCall('srs/rate', 'POST', { item_id: 1, quality: quality });
       AudioFX.playSuccess();
       currentUser.xp += 10;
       saveProfile();
-      alert("Statut SRS mis à jour avec succès (+10 XP) !");
       renderApp();
     },
 
     openGrammarModal() {
       AudioFX.playTap();
-      alert("Grammaire : Present Perfect (have/has + past participle)\nExemple : 'I have visited Paris.'\n\nQuiz : 'She _____ in London for 5 years.'\nRéponse : has lived (+15 XP) !");
+      const questions = appData.grammar_modules[0].questions;
+      let qIndex = 0;
+      let score = 0;
+      
+      const renderQuestion = () => {
+        if (qIndex >= questions.length) {
+          Modal.open('Grammar Quiz Complete', `
+            <div style="text-align:center;">
+              <div class="ema-score-circle">${score}/${questions.length}</div>
+              <p>Great job! You earned ${score * 15} XP.</p>
+            </div>
+          `, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Finish</button>`);
+          currentUser.xp += score * 15;
+          saveProfile();
+          renderApp();
+          return;
+        }
+        
+        const q = questions[qIndex];
+        const html = `
+          <div style="font-size:16px; font-weight:700; margin-bottom: 20px;">${escapeHTML(q.question)}</div>
+          <div id="quiz-options">
+            ${q.options.map((opt, i) => `<div class="ema-quiz-option" onclick="window.EMA.submitGrammarAnswer(${i}, ${q.correct_index}, '${escapeHTML(q.explanation)}')">${escapeHTML(opt)}</div>`).join('')}
+          </div>
+          <div id="quiz-feedback" class="ema-quiz-feedback"></div>
+        `;
+        
+        window.EMA.submitGrammarAnswer = (idx, correctIdx, exp) => {
+          const options = document.querySelectorAll('.ema-quiz-option');
+          options.forEach(o => o.style.pointerEvents = 'none'); // disable clicks
+          
+          if (idx === correctIdx) {
+            options[idx].classList.add('correct');
+            AudioFX.playSuccess();
+            score++;
+            document.getElementById('quiz-feedback').className = 'ema-quiz-feedback show success';
+            document.getElementById('quiz-feedback').innerHTML = '✅ Correct! ' + exp;
+          } else {
+            options[idx].classList.add('incorrect');
+            options[correctIdx].classList.add('correct');
+            AudioFX.playTap();
+            document.getElementById('quiz-feedback').className = 'ema-quiz-feedback show error';
+            document.getElementById('quiz-feedback').innerHTML = '❌ Incorrect. ' + exp;
+          }
+          
+          setTimeout(() => {
+            qIndex++;
+            renderQuestion();
+          }, 2500);
+        };
+        
+        Modal.open('Grammar Quiz', html);
+      };
+      
+      renderQuestion();
     },
 
     openListeningModal() {
       AudioFX.playTap();
-      speakEnglish("Good morning passengers. This is the final boarding call for flight BA342 to London Heathrow. Please proceed to Gate 14.");
-      alert("🎧 Écoutez l'annonce de l'aéroport qui vient d'être jouée !");
+      const exercise = appData.listening_exercises[0];
+      
+      const html = `
+        <div style="text-align:center; margin-bottom: 24px;">
+          <button class="ema-btn-circle-listen" style="margin: 0 auto;" onclick="window.EMA.listenWord('${escapeHTML(exercise.audio_text)}')">🔊</button>
+          <div style="font-size: 13px; color: var(--ema-text-muted); margin-top: 10px;">Tap to play audio</div>
+        </div>
+        <div style="font-size:16px; font-weight:700; margin-bottom: 20px;">${escapeHTML(exercise.question)}</div>
+        <div id="listen-options">
+          ${exercise.options.map((opt, i) => `<div class="ema-quiz-option" onclick="window.EMA.submitListeningAnswer(${i}, ${exercise.correct_index})">${escapeHTML(opt)}</div>`).join('')}
+        </div>
+        <div id="listen-feedback" class="ema-quiz-feedback"></div>
+      `;
+      
+      window.EMA.submitListeningAnswer = (idx, correctIdx) => {
+        const options = document.querySelectorAll('.ema-quiz-option');
+        options.forEach(o => o.style.pointerEvents = 'none'); // disable clicks
+        
+        if (idx === correctIdx) {
+          options[idx].classList.add('correct');
+          AudioFX.playSuccess();
+          document.getElementById('listen-feedback').className = 'ema-quiz-feedback show success';
+          document.getElementById('listen-feedback').innerHTML = '✅ Excellent listening!';
+          currentUser.xp += 20;
+          saveProfile();
+          setTimeout(() => Modal.close(), 2000);
+        } else {
+          options[idx].classList.add('incorrect');
+          options[correctIdx].classList.add('correct');
+          AudioFX.playTap();
+          document.getElementById('listen-feedback').className = 'ema-quiz-feedback show error';
+          document.getElementById('listen-feedback').innerHTML = '❌ Not quite right.';
+          setTimeout(() => Modal.close(), 2000);
+        }
+      };
+      
+      Modal.open('Listening Practice', html);
     },
 
     openWritingModal() {
-      const text = prompt("Écrivez une phrase en anglais sur votre journée :");
-      if (text) {
+      AudioFX.playTap();
+      const promptData = appData.writing_prompts[0];
+      
+      const html = `
+        <div style="font-size: 15px; margin-bottom: 16px;"><strong>Prompt:</strong> ${escapeHTML(promptData.prompt)}</div>
+        <textarea id="writing-textarea" class="ema-writing-textarea" placeholder="Start writing here..."></textarea>
+      `;
+      
+      const footer = `<button class="ema-mobile-primary-btn" onclick="window.EMA.submitWriting()">Submit for Correction</button>`;
+      
+      window.EMA.submitWriting = async () => {
+        const text = document.getElementById('writing-textarea').value.trim();
+        if (!text) return;
+        
+        const btn = document.querySelector('.ema-modal-footer button');
+        btn.innerHTML = 'Submitting...';
+        btn.disabled = true;
+        
+        let result = await apiCall('ai/correct-writing', 'POST', { text });
+        if (!result) {
+          // Local fallback
+          const wordCount = text.split(/\s+/).length;
+          const score = Math.min(100, Math.max(0, 50 + wordCount * 2)); // rough scoring
+          result = {
+            score: score,
+            feedback: [
+              "Good attempt!",
+              "Try to use more complex vocabulary.",
+              `Word count: ${wordCount}`
+            ]
+          };
+        }
+        
         AudioFX.playSuccess();
-        currentUser.xp += 25;
+        currentUser.xp += 30;
         saveProfile();
-        alert(`✨ Correction IA :\nTexte analysé : "${text}"\nScore de précision : 90/100\n+25 XP gagnés !`);
-      }
+        
+        const feedbackHTML = `
+          <div class="ema-score-circle">${result.score}/100</div>
+          <div class="ema-feedback-box">
+            <div class="tips-title">Feedback:</div>
+            <ul>
+              ${result.feedback.map(f => `<li>${escapeHTML(f)}</li>`).join('')}
+            </ul>
+          </div>
+        `;
+        
+        Modal.open('Writing Corrected', feedbackHTML, `<button class="ema-mobile-primary-btn" onclick="Modal.close()">Awesome (+30 XP)</button>`);
+      };
+      
+      Modal.open('Writing Exercise', html, footer);
     },
 
     openIdiomsModal() {
       AudioFX.playTap();
-      alert("💡 Expression : 'It's raining cats and dogs.'\nSignification : Il pleut des cordes !\n\nExemple : 'Don't forget your umbrella today.'");
+      const items = [...appData.phrasal_verbs, ...appData.idioms_expressions];
+      let idx = 0;
+      
+      const renderCard = () => {
+        const item = items[idx];
+        const html = `
+          <div class="ema-flashcard">
+            <div class="ema-flashcard-expression">${escapeHTML(item.verb || item.expression)}</div>
+            <div class="ema-flashcard-meaning">${escapeHTML(item.meaning)}</div>
+            <div class="ema-flashcard-example">"${escapeHTML(item.example)}"</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:24px;">
+            <button class="ema-header-btn-back" style="background:#2563eb" onclick="window.EMA.prevIdiom()">‹</button>
+            <div style="color:var(--ema-text-muted); font-size:14px; align-self:center;">${idx + 1} / ${items.length}</div>
+            <button class="ema-header-btn-back" style="background:#2563eb" onclick="window.EMA.nextIdiom()">›</button>
+          </div>
+        `;
+        Modal.open('Flashcards', html);
+      };
+      
+      window.EMA.prevIdiom = () => {
+        if (idx > 0) idx--;
+        else idx = items.length - 1;
+        renderCard();
+      };
+      
+      window.EMA.nextIdiom = () => {
+        if (idx < items.length - 1) idx++;
+        else idx = 0;
+        renderCard();
+      };
+      
+      renderCard();
     },
 
     openAssessmentModal() {
-      AudioFX.playSuccess();
-      currentUser.level = 'B1';
-      currentUser.level_name = 'Intermediate';
-      currentUser.progress = 64;
-      currentUser.xp += 100;
-      saveProfile();
-      alert("Test complété avec succès ! Votre niveau estimé est B1 Intermédiaire (+100 XP).");
-      renderApp();
+      AudioFX.playTap();
+      const questions = appData.initial_assessment.questions;
+      let qIndex = 0;
+      let score = 0;
+      
+      const renderAssessment = () => {
+        if (qIndex >= questions.length) {
+          // Calculate level
+          let newLevel = 'A1';
+          let levelName = 'Beginner';
+          if (score > 12) { newLevel = 'C1'; levelName = 'Advanced'; }
+          else if (score > 8) { newLevel = 'B2'; levelName = 'Upper Intermediate'; }
+          else if (score > 5) { newLevel = 'B1'; levelName = 'Intermediate'; }
+          else if (score > 2) { newLevel = 'A2'; levelName = 'Elementary'; }
+          
+          currentUser.level = newLevel;
+          currentUser.level_name = levelName;
+          currentUser.xp += 100;
+          saveProfile();
+          
+          Modal.open('Assessment Complete', `
+            <div style="text-align:center;">
+              <div style="font-size: 40px; margin-bottom: 10px;">🎓</div>
+              <h2 style="margin: 0 0 10px 0; color: #fff;">${newLevel} Level Achieved!</h2>
+              <p style="color: var(--ema-text-muted);">You scored ${score} points. Your estimated level is ${levelName}. (+100 XP)</p>
+            </div>
+          `, `<button class="ema-mobile-primary-btn" onclick="Modal.close(); window.EMA.navTo('home')">Start Learning</button>`);
+          return;
+        }
+        
+        const q = questions[qIndex];
+        
+        // Progress indicators
+        const progressHTML = `
+          <div class="ema-assessment-progress">
+            ${questions.map((_, i) => `<div class="ema-assessment-progress-dot ${i === qIndex ? 'active' : (i < qIndex ? 'completed' : '')}"></div>`).join('')}
+          </div>
+        `;
+        
+        const html = `
+          ${progressHTML}
+          <div style="font-size:16px; font-weight:700; margin-bottom: 20px;">${escapeHTML(q.question)}</div>
+          <div id="assess-options">
+            ${q.options.map((opt, i) => `<div class="ema-quiz-option" onclick="window.EMA.submitAssessment(${i}, ${q.correct_index}, ${q.points})">${escapeHTML(opt)}</div>`).join('')}
+          </div>
+        `;
+        
+        window.EMA.submitAssessment = (idx, correctIdx, points) => {
+          const options = document.querySelectorAll('.ema-quiz-option');
+          options.forEach(o => o.style.pointerEvents = 'none');
+          
+          if (idx === correctIdx) {
+            options[idx].classList.add('correct');
+            score += points;
+            AudioFX.playSuccess();
+          } else {
+            options[idx].classList.add('incorrect');
+            options[correctIdx].classList.add('correct');
+            AudioFX.playTap();
+          }
+          
+          setTimeout(() => {
+            qIndex++;
+            renderAssessment();
+          }, 1500);
+        };
+        
+        Modal.open('Level Assessment', html);
+      };
+      
+      renderAssessment();
+    },
+    
+    downloadCertificate() {
+      AudioFX.playTap();
+      // Check if api_root looks like a wordpress endpoint
+      if (CONFIG.api_root.includes('wp-json')) {
+        const url = CONFIG.api_root.replace('wp-json/english-master-ai/v1/', '') + 
+          '?ema_certificate=1&user_name=' + encodeURIComponent(currentUser.name) + 
+          '&level=' + encodeURIComponent(currentUser.level) + 
+          '&level_name=' + encodeURIComponent(currentUser.level_name);
+        window.open(url, '_blank');
+      } else {
+        // Fallback to modal display
+        Modal.open('Certificate', `
+          <div style="text-align: center; padding: 20px 0;">
+            <div style="font-size: 48px; margin-bottom: 10px;">🎓</div>
+            <h2 style="color: #fbbf24; margin: 0 0 10px 0;">Certificate of Achievement</h2>
+            <p style="color: #fff; font-size: 16px;">This certifies that</p>
+            <h3 style="color: #fff; font-size: 24px; margin: 10px 0;">${escapeHTML(currentUser.name)}</h3>
+            <p style="color: #fff; font-size: 16px;">has achieved</p>
+            <h3 style="color: var(--ema-primary); font-size: 22px; margin: 10px 0;">${escapeHTML(currentUser.level)} - ${escapeHTML(currentUser.level_name)}</h3>
+          </div>
+        `);
+      }
     },
 
     openUnitDetail(id, title) {

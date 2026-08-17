@@ -55,12 +55,12 @@ class EMA_Admin {
     }
 
     public function register_settings() {
-        register_setting('ema_settings_group', 'ema_ai_provider');
-        register_setting('ema_settings_group', 'ema_openai_api_key');
-        register_setting('ema_settings_group', 'ema_gemini_api_key');
-        register_setting('ema_settings_group', 'ema_certificate_institution');
-        register_setting('ema_settings_group', 'ema_certificate_signature_name');
-        register_setting('ema_settings_group', 'ema_daily_goal_default');
+        register_setting('ema_settings_group', 'ema_ai_provider', array('sanitize_callback' => 'sanitize_text_field'));
+        register_setting('ema_settings_group', 'ema_openai_api_key', array('sanitize_callback' => 'sanitize_text_field'));
+        register_setting('ema_settings_group', 'ema_gemini_api_key', array('sanitize_callback' => 'sanitize_text_field'));
+        register_setting('ema_settings_group', 'ema_certificate_institution', array('sanitize_callback' => 'sanitize_text_field'));
+        register_setting('ema_settings_group', 'ema_certificate_signature_name', array('sanitize_callback' => 'sanitize_text_field'));
+        register_setting('ema_settings_group', 'ema_daily_goal_default', array('sanitize_callback' => 'absint'));
     }
 
     public function enqueue_admin_assets($hook) {
@@ -234,6 +234,19 @@ class EMA_Admin {
                     </tr>
                 </thead>
                 <tbody>
+                    <?php
+                    global $wpdb;
+                    $table_stats = $wpdb->prefix . 'ema_user_stats';
+                    $students = $wpdb->get_results(
+                        "SELECT s.*, u.display_name, u.user_email 
+                         FROM $table_stats s 
+                         JOIN {$wpdb->users} u ON s.user_id = u.ID 
+                         ORDER BY s.total_xp DESC 
+                         LIMIT 50", ARRAY_A
+                    );
+
+                    if (empty($students)) :
+                    ?>
                     <tr>
                         <td><strong>Alex Martin</strong><br><small>alex@example.com</small></td>
                         <td><span class="badge-level" style="background:#6366F1; color:#fff; padding:3px 8px; border-radius:12px; font-weight:bold;">B1 Intermédiaire</span></td>
@@ -248,6 +261,27 @@ class EMA_Admin {
                         <td>134 mots</td>
                         <td>Aujourd'hui</td>
                     </tr>
+                    <?php else :
+                        foreach ($students as $student) : 
+                    ?>
+                    <tr>
+                        <td><strong><?php echo esc_html($student['display_name']); ?></strong><br><small><?php echo esc_html($student['user_email']); ?></small></td>
+                        <td><span class="badge-level" style="background:#6366F1; color:#fff; padding:3px 8px; border-radius:12px; font-weight:bold;"><?php echo esc_html($student['current_level']); ?></span></td>
+                        <td>
+                            <div style="background:#e2e8f0; border-radius:6px; overflow:hidden; width:120px; height:12px;">
+                                <div style="width:100%; height:100%; background:#10b981;"></div>
+                            </div>
+                            <small>En cours</small>
+                        </td>
+                        <td>🔥 <?php echo intval($student['streak_days']); ?> jours</td>
+                        <td><strong><?php echo number_format_i18n($student['total_xp']); ?> XP</strong></td>
+                        <td>-</td>
+                        <td><?php echo esc_html($student['last_activity_date'] ?? 'N/A'); ?></td>
+                    </tr>
+                    <?php 
+                        endforeach;
+                    endif; 
+                    ?>
                 </tbody>
             </table>
         </div>

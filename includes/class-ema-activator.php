@@ -39,11 +39,12 @@ class EMA_Activator {
             repetition int(11) DEFAULT 0,
             interval_days float DEFAULT 1,
             ease_factor float DEFAULT 2.5,
-            status varchar(20) DEFAULT 'learning', -- new, learning, review, mastered
+            status varchar(20) DEFAULT 'learning',
             next_review_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY user_word (user_id, word_id)
+            PRIMARY KEY  (id),
+            UNIQUE KEY user_word (user_id, word_id),
+            KEY user_review (user_id, next_review_at)
         ) $charset_collate;";
         dbDelta($sql_srs);
 
@@ -58,7 +59,7 @@ class EMA_Activator {
             daily_goal_minutes int(11) DEFAULT 30,
             initial_test_score int(11) DEFAULT 0,
             badges_json text,
-            PRIMARY KEY (user_id)
+            PRIMARY KEY  (user_id)
         ) $charset_collate;";
         dbDelta($sql_stats);
 

@@ -12,7 +12,7 @@
   --ema-bg-card-light: #ffffff;
   --ema-text-main: #0f172a;
   --ema-text-light: #ffffff;
-  --ema-text-muted: #94a3b8;
+  --ema-text-muted: #a8b8cc; /* Improved WCAG contrast from #94a3b8 */
   --ema-border-dark: rgba(255, 255, 255, 0.08);
   --ema-border-light: #e2e8f0;
   
@@ -46,6 +46,11 @@ html, body {
   touch-action: manipulation;
 }
 
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--ema-primary);
+  outline-offset: 2px;
+}
+
 .ema-app-viewport {
   max-width: 480px;
   min-height: 100vh;
@@ -70,8 +75,7 @@ html, body {
   }
   .ema-app-viewport {
     border-radius: 40px;
-    height: 890px;
-    min-height: 890px;
+    height: min(890px, 94vh);
     max-height: 94vh;
     border: 8px solid #1e293b;
     box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
@@ -152,6 +156,7 @@ html, body {
   overflow-y: auto;
   padding: 10px 18px 24px 18px;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox scrollbar hiding */
 }
 
 .ema-mobile-body::-webkit-scrollbar {
@@ -159,8 +164,6 @@ html, body {
 }
 
 /* 1. HOME SCREEN COMPONENTS */
-
-/* Greeting Header */
 .ema-home-greeting {
   margin-bottom: 18px;
 }
@@ -252,6 +255,7 @@ html, body {
   height: 100%;
   background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
   border-radius: 999px;
+  transition: width 0.3s ease;
 }
 
 .ema-level-pct {
@@ -318,6 +322,12 @@ html, body {
 .ema-mobile-primary-btn:active {
   transform: scale(0.98);
   filter: brightness(0.9);
+}
+
+.ema-mobile-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Section Header */
@@ -393,9 +403,7 @@ html, body {
   gap: 4px;
 }
 
-/* 2. UNITS & LESSONS SCREEN (MOCKUP SCREEN 2) */
-
-/* Tab Switcher (Units / Lessons) */
+/* 2. UNITS & LESSONS SCREEN */
 .ema-segment-control {
   display: flex;
   background: #111933;
@@ -419,7 +427,7 @@ html, body {
 }
 
 .ema-segment-btn.active {
-  background: #2563eb;
+  background: var(--ema-primary);
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
 }
@@ -475,7 +483,7 @@ html, body {
   font-weight: bold;
 }
 
-/* 3. PRONUNCIATION PRACTICE (MOCKUP SCREEN 3) */
+/* 3. PRONUNCIATION PRACTICE */
 .ema-pronun-container {
   display: flex;
   flex-direction: column;
@@ -529,7 +537,7 @@ html, body {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #2563eb;
+  background: var(--ema-primary);
   color: #ffffff;
   border: none;
   display: flex;
@@ -567,6 +575,12 @@ html, body {
 .ema-btn-circle-mic.recording {
   background: #ef4444;
   animation: pulse-mic 1.2s infinite;
+}
+
+@keyframes pulse-mic {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 /* Audio Wave Visualizer */
@@ -607,6 +621,7 @@ html, body {
   text-align: left;
   width: 100%;
   margin-bottom: 24px;
+  box-sizing: border-box;
 }
 
 .ema-feedback-box .top {
@@ -640,7 +655,7 @@ html, body {
   line-height: 1.4;
 }
 
-/* 4. BOTTOM NAVIGATION BAR (100% NATIVE MOBILE) */
+/* 4. BOTTOM NAVIGATION BAR */
 .ema-bottom-nav {
   position: absolute;
   bottom: 0;
@@ -689,4 +704,247 @@ html, body {
 
 .ema-nav-item:active {
   transform: scale(0.92);
+}
+
+/* ==========================================================================
+   MODAL SYSTEM STYLES
+   ========================================================================== */
+
+.ema-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(4, 8, 20, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  animation: modal-fade-in 0.2s ease-out forwards;
+}
+
+.ema-modal-card {
+  background: var(--ema-bg-card);
+  width: 100%;
+  max-width: 440px;
+  max-height: 85vh;
+  border-radius: var(--ema-radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modal-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.ema-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 800;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.ema-modal-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ema-modal-close:hover, .ema-modal-close:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ema-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex-grow: 1;
+  scrollbar-width: none;
+}
+.ema-modal-body::-webkit-scrollbar {
+  display: none;
+}
+
+.ema-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Quiz Options */
+.ema-quiz-option {
+  background: #1a274d;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 14px 16px;
+  border-radius: var(--ema-radius-md);
+  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ema-quiz-option:hover {
+  background: #233466;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.ema-quiz-option.correct {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.ema-quiz-option.incorrect {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.ema-quiz-feedback {
+  padding: 12px;
+  border-radius: var(--ema-radius-md);
+  font-size: 14px;
+  margin-top: 16px;
+  display: none;
+}
+.ema-quiz-feedback.show {
+  display: block;
+}
+.ema-quiz-feedback.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.ema-quiz-feedback.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Writing Textarea */
+.ema-writing-textarea {
+  width: 100%;
+  height: 150px;
+  background: #111933;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--ema-radius-md);
+  color: #fff;
+  padding: 14px;
+  font-family: var(--ema-font);
+  font-size: 15px;
+  resize: none;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+.ema-writing-textarea:focus {
+  outline: none;
+  border-color: var(--ema-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* Assessment Progress */
+.ema-assessment-progress {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+.ema-assessment-progress-dot {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+}
+.ema-assessment-progress-dot.active {
+  background: var(--ema-primary);
+}
+.ema-assessment-progress-dot.completed {
+  background: #10b981;
+}
+
+/* Flashcard Styles */
+.ema-flashcard {
+  text-align: center;
+  padding: 20px 10px;
+}
+.ema-flashcard-expression {
+  font-size: 24px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 8px;
+}
+.ema-flashcard-meaning {
+  font-size: 16px;
+  color: #60a5fa;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+.ema-flashcard-example {
+  font-size: 14px;
+  color: var(--ema-text-muted);
+  font-style: italic;
+}
+
+/* Score Circle */
+.ema-score-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 4px solid var(--ema-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 auto 16px auto;
+  color: #fff;
+}
+
+.ema-score-bar {
+  height: 8px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+.ema-score-bar-fill {
+  height: 100%;
+  background: var(--ema-primary-gradient);
+  border-radius: 4px;
+  transition: width 0.5s ease;
 }
