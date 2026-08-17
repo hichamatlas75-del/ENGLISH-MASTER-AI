@@ -441,12 +441,12 @@
 
     return `
       <div class="ema-level-picker">
-        ${['A1','A2','B1','B2','C1','C2'].map(lvl => \`
-          <div class="ema-level-chip \${activeLevelId === lvl ? 'active' : ''}" data-level="\${lvl}" onclick="window.EMA.selectLevel('\${lvl}')">
-            <span class="chip-level">\${lvl}</span>
-            <span class="chip-name">\${levelNames[lvl]}</span>
+        ${['A1','A2','B1','B2','C1','C2'].map(lvl => `
+          <div class="ema-level-chip ${activeLevelId === lvl ? 'active' : ''}" data-level="${lvl}" onclick="window.EMA.selectLevel('${lvl}')">
+            <span class="chip-level">${lvl}</span>
+            <span class="chip-name">${levelNames[lvl]}</span>
           </div>
-        \`).join('')}
+        `).join('')}
       </div>
 
       <!-- Header -->
