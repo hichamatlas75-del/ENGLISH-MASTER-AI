@@ -192,7 +192,7 @@ class EMA_Admin {
                     <tr>
                         <th scope="row"><label for="ema_firebase_api_key">🔥 Clé API Web Firebase (Firestore)</label></th>
                         <td>
-                            <?php $fb_key = get_option('ema_firebase_api_key', ''); ?>
+                            <?php $fb_key = get_option('ema_firebase_api_key', 'AIzaSyDZOm_DhihLvmwdugTVF9B3IkZUaaBZsAQ'); ?>
                             <input type="password" name="ema_firebase_api_key" id="ema_firebase_api_key" value="<?php echo esc_attr($fb_key); ?>" class="regular-text" placeholder="AIzaSy..." />
                             <p class="description">Trouvez-la dans <em>Paramètres du projet > Général > Vos applications (Web)</em> dans la console Firebase.</p>
                         </td>

@@ -7,9 +7,14 @@
   'use strict';
 
   const defaultFirebaseConfig = {
-    projectId: "english-master-ai-4936d",
+    apiKey: "AIzaSyDZOm_DhihLvmwdugTVF9B3IkZUaaBZsAQ",
     authDomain: "english-master-ai-4936d.firebaseapp.com",
-    storageBucket: "english-master-ai-4936d.appspot.com"
+    databaseURL: "https://english-master-ai-4936d-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "english-master-ai-4936d",
+    storageBucket: "english-master-ai-4936d.firebasestorage.app",
+    messagingSenderId: "139561705495",
+    appId: "1:139561705495:web:d62ca6594cb15e65093c52",
+    measurementId: "G-761XZL5RD7"
   };
 
   window.EMA_Firebase = {

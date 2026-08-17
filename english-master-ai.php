@@ -141,7 +141,7 @@ final class EnglishMasterAI {
         }
 
         $ai_provider = get_option('ema_ai_provider', 'builtin'); // builtin, openai, gemini, claude
-        $firebase_api_key = get_option('ema_firebase_api_key', '');
+        $firebase_api_key = get_option('ema_firebase_api_key', 'AIzaSyDZOm_DhihLvmwdugTVF9B3IkZUaaBZsAQ');
         $firebase_project_id = get_option('ema_firebase_project_id', 'english-master-ai-4936d');
 
         wp_localize_script('ema-frontend-js', 'EMA_CONFIG', array(
@@ -152,10 +152,14 @@ final class EnglishMasterAI {
             'initial_data' => $lessons_data,
             'ai_provider'  => $ai_provider,
             'firebase'     => array(
-                'projectId'     => esc_attr($firebase_project_id),
-                'authDomain'    => esc_attr($firebase_project_id) . '.firebaseapp.com',
-                'storageBucket' => esc_attr($firebase_project_id) . '.appspot.com',
                 'apiKey'        => esc_attr($firebase_api_key),
+                'authDomain'    => esc_attr($firebase_project_id) . '.firebaseapp.com',
+                'databaseURL'   => 'https://' . esc_attr($firebase_project_id) . '-default-rtdb.europe-west1.firebasedatabase.app',
+                'projectId'     => esc_attr($firebase_project_id),
+                'storageBucket' => esc_attr($firebase_project_id) . '.firebasestorage.app',
+                'messagingSenderId' => '139561705495',
+                'appId'         => '1:139561705495:web:d62ca6594cb15e65093c52',
+                'measurementId' => 'G-761XZL5RD7',
             ),
             'i18n'         => array(
                 'listening'    => __('Listening', 'english-master-ai'),
